@@ -1,8 +1,7 @@
 import copy
-from pyuvdata import
 from uvtools import dspec
 import numpy as np
-from covariances import cov_mat_simple
+from .covariances import cov_mat_simple
 
 def filter_mat_simple(uvd, tol=1e-9, **cov_kwargs):
     """

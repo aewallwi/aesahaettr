@@ -4,7 +4,7 @@ import numpy as np
 
 
 def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
-                   sim_param_yaml=None, return_bl_lens_freqs):
+                   sim_param_yaml=None, return_bl_lens_freqs=False):
     """
     A covariance matrix that is both simple and flexible enough to describe
     the covariances within the wedge and simple antennas.
@@ -46,7 +46,7 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
             cut between the fabric of the foregrounds and cosmological signal.
 
     """
-    if uvd is None
+    if uvd is None:
         if sim_param_yaml is not None:
             uvd, _, _ = initialize_uvdata_from_params(obs_param_yaml_name)
             uvd = _complete_uvdata(uvd)
@@ -76,5 +76,7 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
                 if (min(bi, bj) + bl_cutoff_buffer) * max_freq < max(bi, bj) * min_freq:
                         covmat[i, j] = 0.
 
-
-    return covmat
+    if return_bl_lens_freqs:
+        return blvals, nuvals, covmat
+    else:
+        return covmat

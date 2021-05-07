@@ -6,9 +6,8 @@ import healpy as hp
 from pyuvsim import analyticbeam as ab
 import os
 from aesahaettr import filter
-import tqdm
 import yaml
-from pygsm import GlobalSkyModel
+from pygdsm import GlobalSkyModel
 from pyuvdata import UVData
 from hera_sim.visibilities import vis_cpu
 from pyuvsim.simsetup import initialize_uvdata_from_params, _complete_uvdata
@@ -65,11 +64,11 @@ def get_basename(antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200, fract
     basename: str
         basename string.
     """
-    basename = f'HERA-III_antenna_diameter{antenna_diameter:.1f}_fractional_spacing{fractional_spacing:.1f}_G{antenna_count}_nf{nf}_df{df/1e3:.3f}kHz_f0{f0/1e6:.3f}MHz'
+    basename = f'HERA-III_antenna_diameter{antenna_diameter:.1f}_fractional_spacing{fractional_spacing:.1f}_nant{antenna_count}_nf{nf}_df{df/1e3:.3f}kHz_f0{f0/1e6:.3f}MHz'
     return basename
 
 
-def intialize_telescope_yamls(output_dir='./', antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200,
+def initialize_telescope_yamls(output_dir='./', clobber=False, antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200,
                               fractional_spacing=1.0, f0=100e6):
     """Initialize observing yaml files for simulation.
 
@@ -77,6 +76,10 @@ def intialize_telescope_yamls(output_dir='./', antenna_count=10, antenna_diamete
     ----------
     output_dir: str, optional
         directory to write simulation config files.
+        default is current dir ('./')
+    clobber: bool, optional
+        overwrite existing config files.
+        default is False
     antenna_count: int, optional
         Number of antennas to simulate. Antennas will be arranged EW as a Golomb ruler.
         default is 10
@@ -107,21 +110,22 @@ def intialize_telescope_yamls(output_dir='./', antenna_count=10, antenna_diamete
     """
     basename = get_basename(antenna_count=antenna_count, antenna_diameter=antenna_diameter, df=df, nf=nf, fractional_spacing=fractional_spacing, f0=f0)
     antpos = np.asarray(golomb_dict[antenna_count]) * antenna_diameter * fractional_spacing
+    csv_name =  os.path.join(output_dir, f'{basename}_antenna_layout.csv')
+    telescope_yaml_name = os.path.join(output_dir, f'{basename}_telescope_config.yaml')
+
     telescope_yaml_dict = {'beam_paths': {i: {'type': 'airy'} for i in range(len(antpos))}, 'diameter': antenna_diameter,
                            'telescope_location': '(-30.721527777777847, 21.428305555555557, 1073.0000000046566)',
                            'telescope_name': 'HERA'}
-    obs_param_dict = {'freq':{'Nfreqs': int(nf), 'bandwidth': float(nf * df), 'start_freq': float(sky_freqs[0])},
+    obs_param_dict = {'freq':{'Nfreqs': int(nf), 'bandwidth': float(nf * df), 'start_freq': float(f0)},
                       'telescope': {'array_layout': csv_name,
                                     'telescope_config_name': telescope_yaml_name},
                       'time': {'Ntimes': 1, 'duration_days': 0.0012731478148148147,
                                'integration_time': 11.0, 'start_time': 2457458.1738949567},
                       'polarization_array': [-5]}
-    telescope_yaml_name = os.path.join(output_dir, f'airy_config_antenna_diameter{antenna_diameter}.yaml')
     if not os.path.exists(telescope_yaml_name) or clobber:
         with open(telescope_yaml_name, 'w') as telescope_yaml_file:
             yaml.safe_dump(telescope_yaml_dict, telescope_yaml_file)
     # write csv file.
-    csv_name =  os.path.join(output_dir, f'layout_antenna_diameter{antenna_diameter}_fractional_spacing{fractional_spacing}_G{antenna_count}.csv')
     lines = []
     lines.append('Name\tNumber\tBeamID\tE    \tN    \tU\n')
     for i, x  in enumerate(antpos):
@@ -162,7 +166,8 @@ def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_fil
 
     """
     # initialize telescope yaml
-    obs_param_yaml_name, telescope_yamle_name, csv_name = intialize_telescope_yamls(output_dir='./', **array_kwargs)
+    obs_param_yaml_name, telescope_yaml_name, csv_name = initialize_telescope_yamls(output_dir=output_dir,
+                                                                                    **array_kwargs)
     uvdata, beams, beam_ids = initialize_uvdata_from_params(obs_param_yaml_name)
     # remove obs config files.
     if not keep_config_files_on_disk:
