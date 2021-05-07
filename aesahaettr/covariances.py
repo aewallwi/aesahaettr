@@ -80,3 +80,14 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
         return blvals, nuvals, covmat
     else:
         return covmat
+
+
+def cov_mat_gsm_simulated():
+    """Estimate a bootstrapped gsm covariance matrix using random rotations.
+    """
+    return
+
+def cov_mat_eor_simulated():
+    """Estimate a bootstrapped eor covariance matrix using random gaussian draws.
+    """
+    return

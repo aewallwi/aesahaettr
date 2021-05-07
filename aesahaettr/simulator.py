@@ -256,7 +256,7 @@ def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=Fa
         # initialize simulator
         beams, beam_ids, uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber, **array_config_kwargs)
         # define eor cube with random noise.
-        eorcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky)) + 1j * np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
+        eorcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
         eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0],
                                        beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
         # simulator
