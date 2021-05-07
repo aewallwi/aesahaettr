@@ -65,11 +65,46 @@ def get_basename(antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200, fract
     basename: str
         basename string.
     """
-    basename = f'HERA-III_antenna_diameter{antenna_diameter}_fractional_spacing{fractional_spacing}_G{antenna_count}_nf{nf}_df{df/1e3:.3f}kHz_f0{f0/1e6:.3f}'
+    basename = f'HERA-III_antenna_diameter{antenna_diameter:.1f}_fractional_spacing{fractional_spacing:.1f}_G{antenna_count}_nf{nf}_df{df/1e3:.3f}kHz_f0{f0/1e6:.3f}MHz'
     return basename
 
 
-def intialize_telescope_yamls(output_dir='./', antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200, fractional_spacing=1.0, f0=100e6):
+def intialize_telescope_yamls(output_dir='./', antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200,
+                              fractional_spacing=1.0, f0=100e6):
+    """Initialize observing yaml files for simulation.
+
+    Parameters
+    ----------
+    output_dir: str, optional
+        directory to write simulation config files.
+    antenna_count: int, optional
+        Number of antennas to simulate. Antennas will be arranged EW as a Golomb ruler.
+        default is 10
+    antenna_diameter: float, optional
+        Diameter of antenna apertures (meters)
+        default is 2.0
+    df: float, optional
+        frequency channel width (Hz)
+        default is 100e3
+    nf: integer, optional
+        number of frequency channels to simulation
+        Default is 200
+    fractional_spacing: float, optional
+        spacing between antennas as fraction of antenna_diameter
+        Default is 1.0
+    f0: float, optional
+        minimum frequency to simulate (Hz)
+        default is 100e6
+    Returns
+    -------
+    obs_param_yaml_name: str
+        path to obs_param yaml file that can be fed into
+        pyuvsim.simsetup.initialize_uvdata_from_params()
+    telescope_yaml_name: str
+        path to telescope yaml file. Referenced in obs_param_yaml file.
+    csv_file: str
+        path to csv file containing antenna locations.
+    """
     basename = get_basename(antenna_count=antenna_count, antenna_diameter=antenna_diameter, df=df, nf=nf, fractional_spacing=fractional_spacing, f0=f0)
     antpos = np.asarray(golomb_dict[antenna_count]) * antenna_diameter * fractional_spacing
     telescope_yaml_dict = {'beam_paths': {i: {'type': 'airy'} for i in range(len(antpos))}, 'diameter': antenna_diameter,
@@ -99,7 +134,7 @@ def intialize_telescope_yamls(output_dir='./', antenna_count=10, antenna_diamete
     if not os.path.exists(obs_param_yaml_name) or clobber:
         with open(obs_param_yaml_name, 'w') as obs_param_yaml:
             yaml.safe_dump(obs_param_dict, obs_param_yaml)
-    return obs_param_yaml_name, telescope_yamle_name, csv_name
+    return obs_param_yaml_name, telescope_yaml_name, csv_name
 
 
 def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=False, **array_kwargs):
@@ -121,6 +156,10 @@ def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_fil
     -------
     uvd: UVData object
         blank uvdata file
+    beam_ids: list
+        list of beam ids
+    beams: UVBeam list
+
     """
     # initialize telescope yaml
     obs_param_yaml_name, telescope_yamle_name, csv_name = intialize_telescope_yamls(output_dir='./', **array_kwargs)
@@ -132,7 +171,7 @@ def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_fil
 
     beam_ids = list(beam_ids.values())
     beams.set_obj_mode()
-    return _complete_uvdata(uvdata, inplace=False)
+    return beam_ids, beams, _complete_uvdata(uvdata, inplace=False)
 
 
 def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=False, compress_by_redundancy=True,
@@ -185,7 +224,7 @@ def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=Fa
         NPIX_GSM = hp.nside2npix(nside_sky)
         gsmcube = np.zeros((nf, NPIX_GSM))
         rot=hp.rotator.Rotator(coord=['G', 'C'])
-        uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber, **array_config_kwargs)
+        beams, beam_ids, uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber, **array_config_kwargs)
         for fnum, f in enumerate(uvdata.freq_array[0]):
             mapslice = gsm.generate(f)
             mapslice = hp.ud_grade(mapslice, nside_sky)
@@ -194,7 +233,8 @@ def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=Fa
         gsmcube = np.array(gsmcube)
         # convert gsm cube from K to Jy / Sr. multiplying by 2 k_b / lambda^2 * ([Joules / meter^2 / Jy] =1e26)
         gsmcube = 2 * gsmcube * 1.4e-23 / 1e-26 / (3e8 / sky_freqs[:, None])**2
-        gsm_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=sky_freqs, beams=beams, beam_ids=beam_ids, sky_intensity=gsmcube)
+        gsm_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
+                                       beam_ids=beam_ids, sky_intensity=gsmcube)
         gsm_vis = gsm_simulator.simulate()
         gsm_simulator.uvdata.vis_units='Jy'
         uvd_gsm = gsm_simulator.uvdata
@@ -209,10 +249,11 @@ def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=Fa
     # only do eor cube if file does not exist.
     if not os.path.exists(eor_file_name) or clobber:
         # initialize simulator
-        uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber, **array_config_kwargs)
+        beams, beam_ids, uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber, **array_config_kwargs)
         # define eor cube with random noise.
         eorcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky)) + 1j * np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
-        eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=sky_freqs, beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
+        eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0],
+                                       beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
         # simulator
         eor_vis = eor_simulator.simulate()
         # set visibility units.
@@ -285,11 +326,6 @@ def get_simulation_parser():
     filtergroup.add_argument("--buffer_multiplier", type=float, default=1.0, help="Factor to multiply frequency buffer by.")
     filtergroup.add_argument("--per_baseline", default=False, action="store_true", help="Perform per-baseline filter rather then inter-baseline filter.")
     filtergroup.add_argument("--bl_cutoff", default=np.inf, help="Set approximate covariance to be zero between baselines with separation greater then this value.")
-
-
-
-
-
 
 
 
