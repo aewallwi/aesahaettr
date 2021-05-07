@@ -1,7 +1,7 @@
 import copy
 from uvtools import dspec
 import numpy as np
-from .covariances import cov_mat_simple
+from .  import covariances
 
 def filter_mat_simple(uvd, tol=1e-9, **cov_kwargs):
     """
@@ -26,7 +26,7 @@ def filter_mat_simple(uvd, tol=1e-9, **cov_kwargs):
 
 
     """
-    cmat_simple = cov_mat_simple(uvd, **cov_kwargs)
+    cmat_simple = covariances.cov_mat_simple(uvd, **cov_kwargs)
     cmat_simple = cmat_simple / tol + np.identity(cmat_simple.shape[0])
     return np.linalg.pinv(cmat_simple)
 

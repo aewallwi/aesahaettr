@@ -1,10 +1,10 @@
 # tools for computing ivsibility covariances.
 
 import numpy as np
-
+from . import simulator
 
 def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
-                   sim_param_yaml=None, return_bl_lens_freqs=False):
+                   return_bl_lens_freqs=False, **array_config_kwargs):
     """
     A covariance matrix that is both simple and flexible enough to describe
     the covariances within the wedge and simple antennas.
@@ -24,11 +24,12 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
         thus the larger the bl_cutoff_buffer_buffer, the fewer off-diag terms are set to zero.
     order_by_bl_length: bool, optional
         If true, order columns and rows by increasing baseline length.
-    sim_param_yaml: str, optional
-        used if uvd is None.
-        parameters to generate a uvdata object to compute simple covariance matrix for.
     return bl_len_freqs: bool, optional
-        if True, return vector of baseline lengths and frequencies..
+        if True, return vector of baseline lengths and frequencies.
+    array_config_kwargs: kwarg dict
+        kargs for simulator.initialize_simulation_uvdata
+        see docstring.
+
 
     Returns
     -------
@@ -47,11 +48,7 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
 
     """
     if uvd is None:
-        if sim_param_yaml is not None:
-            uvd, _, _ = initialize_uvdata_from_params(obs_param_yaml_name)
-            uvd = _complete_uvdata(uvd)
-        else:
-            raise ValueError("Must provide a uvdata object or sim_param_yaml")
+        _, _, uvd = simulator.initialize_simulation_uvdata(**array_config_kwargs)
     for i in range(1, 2):
         if np.any(~np.isclose(uvd.uvw_array[:, i], 0.0)):
             raise NotImplementedError("cov_mat_simple only currently supports 1d arrays oriented EW.")
