@@ -213,6 +213,9 @@ def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=Fa
         directory to write simulation config files.
     clobber: bool, optional
         overwrite existing config files.
+    keep_config_files_on_disk: bool, optional
+        Keep config files on disk. Otherwise delete.
+        default is False.
     array_config_kwargs: kwarg_dict, optional
         array parameters. See initialize_simulation_uvdata for details.
 
@@ -226,54 +229,59 @@ def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=Fa
     """
     # only perform simulation if clobber is true and gsm_file_name does not exist and eor_file_name does not exist:
     # generate GSM cube
-    basename = initialize_simulation_uvdata(**array_config_kwargs)
-    gsm_file_name = basename + f'compressed_{compress_by_redundancy}_gsm.uvh5'
-    eor_file_name = basename + f'compressed_{compress_by_redundancy}_eor_{eor_fg_ratio:.1f}dB.uvh5'
+    basename = get_basename(**array_config_kwargs)
+    gsm_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_gsm.uvh5')
+    eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_eor_{eor_fg_ratio:.1f}dB.uvh5')
     if not os.path.exists(gsm_file_name) or clobber:
         gsm = GlobalSkyModel(freq_unit='Hz')
         NPIX_GSM = hp.nside2npix(nside_sky)
-        gsmcube = np.zeros((nf, NPIX_GSM))
         rot=hp.rotator.Rotator(coord=['G', 'C'])
-        beams, beam_ids, uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber, **array_config_kwargs)
+        beam_ids, beams, uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber,
+                                                               keep_config_files_on_disk=keep_config_files_on_disk,
+                                                                **array_config_kwargs)
+        gsmcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
         for fnum, f in enumerate(uvdata.freq_array[0]):
             mapslice = gsm.generate(f)
             mapslice = hp.ud_grade(mapslice, nside_sky)
             # convert from galactic to celestial
             gsmcube[fnum] = rot.rotate_map_pixel(mapslice)
-        gsmcube = np.array(gsmcube)
         # convert gsm cube from K to Jy / Sr. multiplying by 2 k_b / lambda^2 * ([Joules / meter^2 / Jy] =1e26)
-        gsmcube = 2 * gsmcube * 1.4e-23 / 1e-26 / (3e8 / sky_freqs[:, None])**2
+        gsmcube = 2 * gsmcube * 1.4e-23 / 1e-26 / (3e8 / uvdata.freq_array[0][:, None])**2
         gsm_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
                                        beam_ids=beam_ids, sky_intensity=gsmcube)
-        gsm_vis = gsm_simulator.simulate()
+        gsm_simulator.simulate()
         gsm_simulator.uvdata.vis_units='Jy'
         uvd_gsm = gsm_simulator.uvdata
         if compress_by_redundancy:
             # compress with quarter wavelength tolerance.
             uvd_gsm.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_gsm.freq_array.max())
         uvd_gsm.write_uvh5(gsm_file_name, clobber=True)
-        uvd_gsm = gsm_simulator.uvdata
     else:
         uvd_gsm = UVData()
         uvd_gsm.read(gsm_file_name)
     # only do eor cube if file does not exist.
     if not os.path.exists(eor_file_name) or clobber:
         # initialize simulator
-        beams, beam_ids, uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber, **array_config_kwargs)
+        beam_ids, beams, uvdata = initialize_simulation_uvdata(output_dir=output_dir, clobber=clobber,
+                                                               keep_config_files_on_disk=keep_config_files_on_disk,
+                                                               **array_config_kwargs)
         # define eor cube with random noise.
         eorcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
+        # make sure pixels >= zero.
+        eorcube -= eorcube.min()
         eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0],
                                        beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
         # simulator
-        eor_vis = eor_simulator.simulate()
+        eor_simulator.simulate()
         # set visibility units.
         eor_simulator.uvdata.vis_units='Jy'
         # write out
         uvd_eor = eor_simulator.uvdata
         if compress_by_redundancy:
             # compress with quarter wavelength tolerance.
-            uvd_gsm.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_eor.freq_array.max())
-        uvd_eor.data_array *= np.mean(np.abs(uvd_gsm.data_array) ** 2.) / np.mean(np.abs(uvd_eor.data_array.real) ** 2.) * eor_fg_ratio
+            uvd_eor.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_eor.freq_array.max())
+        uvd_eor.data_array *= np.sqrt(np.mean(np.abs(uvd_gsm.data_array) ** 2.))\
+                              / np.sqrt(np.mean(np.abs(uvd_eor.data_array) ** 2.)) * eor_fg_ratio
         uvd_eor.write_uvh5(eor_file_name, clobber=True)
     else:
         # just read in if clobber=False and file already exists.
