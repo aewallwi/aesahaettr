@@ -56,20 +56,19 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
     data_inds = np.where(uvd.time_array == np.unique(uvd.time_array)[0])[0]
     # sort data inds by baseline length if we wish.
     if order_by_bl_length:
-        data_inds[np.argsort(np.abs(uvd.uvw_array[data_inds, 0]))]
-    blvals = np.outer(uvd.uvw_array[data_inds, 0], np.ones_like(uvd.freq_array[0])).flatten('F')
-    nuvals = np.outer(np.ones(uvd.Nbls), uvd.freq_array[0]).flatten('F')
+        data_inds = data_inds[np.argsort(np.abs(uvd.uvw_array[data_inds, 0]))]
+    blvals = np.outer(uvd.uvw_array[data_inds, 0], np.ones_like(uvd.freq_array[0])).flatten()
+    nuvals = np.outer(np.ones(uvd.Nbls), uvd.freq_array[0]).flatten()
     u_x, u_y = np.meshgrid(blvals * nuvals / 3e8, blvals * nuvals / 3e8)
     nu_x, nu_y = np.meshgrid(nuvals, nuvals)
     covmat = np.sinc(2 * (u_x - u_y)) * np.sinc(2 * antenna_chromaticity * (nu_x - nu_y))
     if np.isfinite(bl_cutoff_buffer):
         del nu_x, u_x
         del nu_y, u_y
-        bl_x, bl_y = np.meshgrid(blvals, blvals)
         min_freq = uvd.freq_array.min()
         max_freq = uvd.freq_array.max()
-        for i, bi in enumerate(b_x):
-            for j, bj in enumerate(b_y):
+        for i, bi in enumerate(np.abs(blvals)):
+            for j, bj in enumerate(np.abs(blvals)):
                 if (min(bi, bj) + bl_cutoff_buffer) * max_freq < max(bi, bj) * min_freq:
                         covmat[i, j] = 0.
 
@@ -78,6 +77,16 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
     else:
         return covmat
 
+def cov_airy_integral():
+    """
+    """
+
+
+def cov_element_airy(signal_frequency_covariance=None):
+    """Covariance matrix between airy-beams and flat foregrounds.
+
+    signal_frequency_covariance: function nu_1, nu_2 -> covariance, optional.
+    """
 
 def cov_mat_gsm_simulated():
     """Estimate a bootstrapped gsm covariance matrix using random rotations.

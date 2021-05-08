@@ -60,7 +60,7 @@ def filter_data(uvd, use_dayenu=False, **filter_kwargs):
                 uvd.data_array[data_inds, 0, :, pind] = \
                 (filter_matrix @\
                  (data.reshape(len(data_inds)\
-                  * uvd.Nfreqs, order='F'))).reshape(len(data_inds), uvd.Nfreqs, order='F')
+                  * uvd.Nfreqs))).reshape(len(data_inds), uvd.Nfreqs)
     else:
         cache = {}
         for time in np.unique(uvd.time_array):

@@ -5,7 +5,7 @@ import copy
 import healpy as hp
 from pyuvsim import analyticbeam as ab
 import os
-from aesahaettr import filter
+from . import filter
 import yaml
 from pygdsm import GlobalSkyModel
 from pyuvdata import UVData
@@ -141,7 +141,7 @@ def initialize_telescope_yamls(output_dir='./', clobber=False, antenna_count=10,
     return obs_param_yaml_name, telescope_yaml_name, csv_name
 
 
-def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=False, **array_kwargs):
+def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=False, compress_by_redundancy=False, **array_kwargs):
     """Prepare configuration files and UVData to run simulation.
 
     Parameters
@@ -153,6 +153,8 @@ def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_fil
     keep_config_files_on_disk: bool, optional
         Keep config files on disk. Otherwise delete.
         default is False.
+    compress_by_redundancy: bool, optional
+        If True, compress by redundancy. Makes incompatible with VisCPU for now.
     array_kwargs: kwarg_dict, optional
         array parameters. See get_basename for details.
 
@@ -176,7 +178,10 @@ def initialize_simulation_uvdata(output_dir='./', clobber=False, keep_config_fil
 
     beam_ids = list(beam_ids.values())
     beams.set_obj_mode()
-    return beam_ids, beams, _complete_uvdata(uvdata, inplace=False)
+    _complete_uvdata(uvdata, inplace=True)
+    if compress_by_redundancy:
+        uvdata.compress_by_redundancy(tol = 0.25 * 3e8 / uvdata.freq_array.max(), inplace=True)
+    return beam_ids, beams, uvdata
 
 
 def run_simulation(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=False, compress_by_redundancy=True,
