@@ -12,8 +12,8 @@ from pyuvdata import UVData
 from hera_sim.visibilities import vis_cpu
 from pyuvsim.simsetup import initialize_uvdata_from_params, _complete_uvdata
 
-golomb_dict = {0:[0], 1:[0,1], 2:[0,1,3],
-               3:[0,1,4,6], 4:[0,1,4,6], 5:[0,1,4,9,11],
+golomb_dict = {1:[0], 2:[0,1], 3:[0,1,3],
+               4:[0,1,4,6], 5:[0,1,4,9,11],
                6:[0,1,4,10,12,17], 7:[0,1,4,10,18,23,25],
                8:[0,1,4,9,15,22,32,34], 9:[0,1,5,12,25,27,35,41,44],
                10:[0,1,6,10,23,26,34,41,53,55],
