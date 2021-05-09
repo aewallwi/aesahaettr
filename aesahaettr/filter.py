@@ -77,3 +77,24 @@ def filter_data(uvd, use_dayenu=False, **filter_kwargs):
                     uvd.data_array[data_inds[rownum], 0, :, pind] = filtered
 
     return uvd
+
+
+def filter_covariance(cov_matrix, uvd=None, return_diag_as_uvdata=True, **array_kwargs):
+    """Apply filter to data covariance matrix.
+
+    Parameters
+    ----------
+    cov_matrix: array-like
+        covariance matrix of data to filter.
+    uvd: UVData object, optional.
+        UVData containing frequencies and baselines described by covariance matrix.
+    return_diag_as_uvdata: bool, optional
+        return the diagonal of the covariance matrix stored in uvdata object.
+        otherwise return the entire filtered covariance.
+        default is True.
+    array_kwargs: kwargs for array. Used if uvd is None.
+        see visibilities.initialize_uvdata kwargs.
+
+    Returns
+    -------
+    """
