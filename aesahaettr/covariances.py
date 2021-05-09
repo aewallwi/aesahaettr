@@ -2,6 +2,8 @@
 
 import numpy as np
 from . import visibilities
+# import airy beam model.
+
 
 def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
                    return_bl_lens_freqs=False, **array_config_kwargs):
@@ -27,7 +29,7 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
     return bl_len_freqs: bool, optional
         if True, return vector of baseline lengths and frequencies.
     array_config_kwargs: kwarg dict
-        kargs for simulator.initialize_simulation_uvdata
+        kargs for visibilities.initialize_uvdata
         see docstring.
 
 
@@ -48,7 +50,7 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
 
     """
     if uvd is None:
-        _, _, uvd = simulator.initialize_simulation_uvdata(**array_config_kwargs)
+        uvd, _, _ = visibilities.initialize_uvdata(**array_config_kwargs)
     for i in range(1, 2):
         if np.any(~np.isclose(uvd.uvw_array[:, i], 0.0)):
             raise NotImplementedError("cov_mat_simple only currently supports 1d arrays oriented EW.")
@@ -80,6 +82,7 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
 def cov_airy_integral():
     """
     """
+    return
 
 
 def cov_element_airy(signal_frequency_covariance=None):

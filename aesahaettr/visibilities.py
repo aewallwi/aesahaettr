@@ -162,9 +162,9 @@ def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=
     -------
     uvd: UVData object
         blank uvdata file
+    beams: UVBeam list
     beam_ids: list
         list of beam ids
-    beams: UVBeam list
 
     """
     # initialize telescope yaml
@@ -181,12 +181,12 @@ def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=
     _complete_uvdata(uvdata, inplace=True)
     if compress_by_redundancy:
         uvdata.compress_by_redundancy(tol = 0.25 * 3e8 / uvdata.freq_array.max(), inplace=True)
-    return beam_ids, beams, uvdata
+    return uvdata, beams, beam_ids
 
 
 def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=False, compress_by_redundancy=True,
                    keep_config_files_on_disk=False, **array_config_kwargs):
-    """End to end simulation of global sky-model with white noise EoR.
+    """Compute visibilities for global sky-model with white noise EoR.
 
     Simulate visibilities at a single time for a Golomb array of antennas located at the HERA site.
     Uses the Global Sky Model (GSM) to compute foregrounds and simulates EoR signal as a white noise
@@ -236,7 +236,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clob
         gsm = GlobalSkyModel(freq_unit='Hz')
         NPIX_GSM = hp.nside2npix(nside_sky)
         rot=hp.rotator.Rotator(coord=['G', 'C'])
-        beam_ids, beams, uvdata = initialize_uvdata(output_dir=output_dir, clobber=clobber,
+        uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                 **array_config_kwargs)
         gsmcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
@@ -262,7 +262,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clob
     # only do eor cube if file does not exist.
     if not os.path.exists(eor_file_name) or clobber:
         # initialize simulator
-        beam_ids, beams, uvdata = initialize_uvdata(output_dir=output_dir, clobber=clobber,
+        uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                **array_config_kwargs)
         # define eor cube with random noise.
