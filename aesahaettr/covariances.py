@@ -1,7 +1,7 @@
 # tools for computing ivsibility covariances.
 
 import numpy as np
-from . import simulator
+from . import visibilities
 
 def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
                    return_bl_lens_freqs=False, **array_config_kwargs):

@@ -1,5 +1,5 @@
 import pytest
-from .. import simulator
+from .. import visibilities
 import os
 import yaml
 import numpy as np
@@ -20,13 +20,13 @@ def test_intialize_simulation_uvdata(tmpdir):
     tmppath = tmpdir.strpath
     array_kwargs = {'df': 50e3, 'f0': 831.7e6, 'nf': 13, 'antenna_diameter': 4.3, 'fractional_spacing': 3.1, 'antenna_count': 21}
     obs_param_yaml_name, telescope_yaml_name, csv_name = simulator.initialize_telescope_yamls(output_dir=tmppath, **array_kwargs)
-    beams, beam_ids, uvdata = simulator.initialize_simulation_uvdata(output_dir=tmppath, keep_config_files_on_disk=False, **array_kwargs)
+    beams, beam_ids, uvdata = simulator.initialize_uvdata(output_dir=tmppath, keep_config_files_on_disk=False, **array_kwargs)
     # assert that yamls have been erased.
     assert not os.path.exists(obs_param_yaml_name)
     assert not os.path.exists(telescope_yaml_name)
     assert not os.path.exists(csv_name)
     # now check that they have not been erased.
-    beams, beam_ids, uvdata = simulator.initialize_simulation_uvdata(output_dir=tmppath, keep_config_files_on_disk=True, **array_kwargs)
+    beams, beam_ids, uvdata = simulator.initialize_uvdata(output_dir=tmppath, keep_config_files_on_disk=True, **array_kwargs)
 
     assert os.path.exists(obs_param_yaml_name)
     assert os.path.exists(telescope_yaml_name)
@@ -49,7 +49,7 @@ def test_run_simulator(tmpdir):
                   'antenna_diameter': 2.1, 'fractional_spacing': 4.3}
     tmppath = tmpdir.strpath
     obs_param_yaml_name, telescope_yaml_name, csv_name = simulator.initialize_telescope_yamls(output_dir=tmppath, **array_kwargs)
-    uvd_gsm, uvd_eor = simulator.run_simulation(output_dir=tmppath, eor_fg_ratio=3.7e-2, nside_sky=8, keep_config_files_on_disk=False,
+    uvd_gsm, uvd_eor = simulator.compute_visibilities(output_dir=tmppath, eor_fg_ratio=3.7e-2, nside_sky=8, keep_config_files_on_disk=False,
                                                 clobber=True, compress_by_redundancy=False, **array_kwargs)
     assert not os.path.exists(obs_param_yaml_name)
     assert not os.path.exists(telescope_yaml_name)
