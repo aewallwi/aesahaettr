@@ -1,7 +1,7 @@
 
 import numpy as np
 from . import visibilities
-from . import filter
+from . import icov_filter
 import os
 import argparse
 import copy
@@ -58,7 +58,7 @@ def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
             uvd_eor, uvd_gsm = visibilities.compute_visibilities(output_dir=output_dir, clobber=clobber, **sim_kwargs)
         uvd_total = copy.deepcopy(uvd_eor)
         uvd_total.data_array = uvd_eor.data_array + uvd_gsm.data_array
-        uvd_filtered = filter.filter_data(uvd_total, eta_max=antenna_diameter / 3e8 * intrinsic_chromaticity_multiplier,
+        uvd_filtered = icov_filter.filter_data(uvd_total, antenna_chromaticity=antenna_diameter / 3e8 * intrinsic_chromaticity_multiplier,
                                           tol=tol, use_dayenu=use_dayenu, bl_cutoff_buffer=bl_cutoff_buffer)
     return uvd_total, uvd_filtered,
 

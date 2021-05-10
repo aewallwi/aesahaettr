@@ -5,7 +5,6 @@ import copy
 import healpy as hp
 from pyuvsim import analyticbeam as ab
 import os
-from . import filter
 import yaml
 from pygdsm import GlobalSkyModel
 from pyuvdata import UVData

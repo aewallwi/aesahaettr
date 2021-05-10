@@ -1,6 +1,6 @@
 import numpy as np
-
-
+import copy
+from uvtools import dspec
 
 def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window='bh', min_bl=0.1):
     """
@@ -30,7 +30,6 @@ def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window='bh', 
         Nbls x Nfreqs array of data that has been Fourier transformed along the
         frequency axis. Baselines are arranged along baseline axis in ascending length.
     """
-    uvd = copy.deepcopy(uvd)
     data_inds = np.where(uvd.time_array == np.unique(uvd.time_array)[tind])[0]
     data = uvd.data_array[data_inds, 0, :, polind].reshape(len(data_inds), uvd.Nfreqs)
     bl_lens = np.linalg.norm(uvd.uvw_array[data_inds], axis=1)

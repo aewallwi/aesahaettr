@@ -98,3 +98,4 @@ def filter_covariance(cov_matrix, uvd=None, return_diag_as_uvdata=True, **array_
     Returns
     -------
     """
+    return

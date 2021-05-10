@@ -17,7 +17,7 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
         Input data to compute covariance matrix for.
         Only supports 1d arrays.
     antenna_chromaticity: float, optional
-        intrinsic chromaticity of each antenna and the sky (in ns).
+        intrinsic chromaticity of each antenna and the sky (in seconds).
         Default is 0.0
     bl_cutoff_buffer: float, optional
         For two baselines with length b2 > b1
