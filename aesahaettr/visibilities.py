@@ -10,6 +10,7 @@ from pygdsm import GlobalSkyModel
 from pyuvdata import UVData
 from hera_sim.visibilities import vis_cpu
 from pyuvsim.simsetup import initialize_uvdata_from_params, _complete_uvdata
+from . import defaults
 
 golomb_dict = {1:[0], 2:[0,1], 3:[0,1,3],
                4:[0,1,4,6], 5:[0,1,4,9,11],
@@ -35,7 +36,9 @@ golomb_dict = {1:[0], 2:[0,1], 3:[0,1,3],
                27:[0, 3, 15, 41, 66, 95, 97, 106, 142, 152, 220, 221, 225, 242, 295, 330, 338, 354, 382, 388, 402, 415, 486, 504, 523, 546, 553]}
 
 
-def get_basename(antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200, fractional_spacing=1.0, f0=100e6):
+def get_basename(antenna_count=defaults.antenna_count, antenna_diameter=defaults.antenna_diameter,
+                 df=defaults.df, nf=defaults.nf, fractional_spacing=defaults.fractional_spacing,
+                 f0=defaults.f0):
     """Generate basename string for naming sim outputs and config yamls.
 
     Parameters
@@ -67,8 +70,8 @@ def get_basename(antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200, fract
     return basename
 
 
-def initialize_telescope_yamls(output_dir='./', clobber=False, antenna_count=10, antenna_diameter=2.0, df=100e3, nf=200,
-                              fractional_spacing=1.0, f0=100e6):
+def initialize_telescope_yamls(output_dir='./', clobber=False, antenna_count=defaults.antenna_count, antenna_diameter=defaults.antenna_diameter,
+                               df=defaults.df, nf=defaults.nf, fractional_spacing=defaults.fractional_spacing, f0=defaults.f0):
     """Initialize observing yaml files for simulation.
 
     Parameters
@@ -110,7 +113,7 @@ def initialize_telescope_yamls(output_dir='./', clobber=False, antenna_count=10,
     basename = get_basename(antenna_count=antenna_count, antenna_diameter=antenna_diameter, df=df, nf=nf, fractional_spacing=fractional_spacing, f0=f0)
     antpos = np.asarray(golomb_dict[antenna_count]) * antenna_diameter * fractional_spacing
     csv_name =  os.path.join(output_dir, f'{basename}_antenna_layout.csv')
-    telescope_yaml_name = os.path.join(output_dir, f'{basename}_telescope_config.yaml')
+    telescope_yaml_name = os.path.join(output_dir, f'{basename}_telescope_defaults.yaml')
 
     telescope_yaml_dict = {'beam_paths': {i: {'type': 'airy'} for i in range(len(antpos))}, 'diameter': antenna_diameter,
                            'telescope_location': '(-30.721527777777847, 21.428305555555557, 1073.0000000046566)',
@@ -140,7 +143,8 @@ def initialize_telescope_yamls(output_dir='./', clobber=False, antenna_count=10,
     return obs_param_yaml_name, telescope_yaml_name, csv_name
 
 
-def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=False, compress_by_redundancy=False, **array_kwargs):
+def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=False, compress_by_redundancy=False,
+                      **array_kwargs):
     """Prepare configuration files and UVData to run simulation.
 
     Parameters
@@ -184,7 +188,7 @@ def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=
 
 
 def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=False, compress_by_redundancy=True,
-                   keep_config_files_on_disk=False, **array_config_kwargs):
+                         keep_config_files_on_disk=False, **array_config_kwargs):
     """Compute visibilities for global sky-model with white noise EoR.
 
     Simulate visibilities at a single time for a Golomb array of antennas located at the HERA site.

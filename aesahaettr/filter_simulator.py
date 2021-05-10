@@ -5,6 +5,7 @@ from . import icov_filter
 import os
 import argparse
 import copy
+from . import defaults
 
 def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
                         compress_by_redundancy=False,
@@ -42,7 +43,7 @@ def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
     if 'antenna_diameter' in sim_kwargs:
         antenna_diameter = sim_kwargs['antenna_diameter']
     else:
-        antenna_diameter = 2.0
+        antenna_diameter = defaults.antenna_diameter
     basename = visibilities.get_basename(**sim_kwargs)
     filtered_pbl_file = os.path.join(output_dir, basename + f'_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_pbl.uvh5')
     filtered_ibl_file = os.path.join(output_dir, basename + f'_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_ibl.uvh5')
@@ -66,13 +67,13 @@ def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
 def get_simulation_parser():
     ap = argparse.ArgumentParser(description="Perform a 1-dimensional filtering simulation.")
     simgroup = ap.add_argument_group("Simulation parameters.")
-    simgroup.add_argument("--antenna_count", type=int, help="Number of antennas in array simulation.", default=10)
+    simgroup.add_argument("--antenna_count", type=int, help="Number of antennas in array simulation.", default=defaults.antenna_count)
     simgroup.add_argument("--max_bl_length", type=int, help="Maximum baseline length. Can be used to automatically determine the antenna count.", default=None)
     simgroup.add_argument("--antenna_diameter", type=float, default=4.0, help="Diameter of a single antenna element (uses Airy beam).")
     simgroup.add_argument("--fractional_spacing", type=float, help="Distance between elements as a fraction of dish diameter.", default=1.0)
-    simgroup.add_argument("--Nfreqs", type=int, help="Number of frequency channels.", default=100)
-    simgroup.add_argument("--freq_channel_width", type=float, help="Frequency Channel width [Hz].", default=100e3)
-    simgroup.add_argument("--minimum_frequency", type=float, help="Minimum frequency [Hz].", default=100e6)
+    simgroup.add_argument("--Nfreqs", type=int, help="Number of frequency channels.", default=defaults.nf)
+    simgroup.add_argument("--freq_channel_width", type=float, help="Frequency Channel width [Hz].", default=defaults.df)
+    simgroup.add_argument("--minimum_frequency", type=float, help="Minimum frequency [Hz].", default=defaults.f0)
     filtergroup = ap.add_argument_group("Filtering Parameters")
     filtergroup.add_argument("--tol", type=float, default=1e-11, help="Factor to suppress foregrounds by.")
     filtergroup.add_argument("--buffer_multiplier", type=float, default=1.0, help="Factor to multiply frequency buffer by.")

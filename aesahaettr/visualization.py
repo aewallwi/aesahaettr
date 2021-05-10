@@ -1,6 +1,7 @@
 import numpy as np
 import copy
 from uvtools import dspec
+from . import defaults
 
 def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window='bh', min_bl=0.1):
     """
@@ -42,3 +43,13 @@ def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window='bh', 
     delays = 1e9 * np.fft.fftshift(np.fft.fftfreq(uvd.Nfreqs, np.mean(np.diff(uvd.freq_array))))
     fftd_data =  np.fft.fftshift(np.fft.fft(np.fft.fftshift(wf[None, :] * data, axes=1), axis=1), axes=1)
     return bl_lens, delays, fftd_data
+
+
+def visualize_ueta_sampling(**array_kwargs):
+    """Show sampling of the uv-eta plane.
+
+    """
+    if 'antenna_diameter' in array_kwargs:
+        antenna_diameter = array_kwargs['antenna_diameter']
+    else:
+        antenna_diameter = defaults.antenna_diameter
