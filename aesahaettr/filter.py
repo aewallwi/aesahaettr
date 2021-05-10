@@ -50,7 +50,7 @@ def filter_data(uvd, use_dayenu=False, **filter_kwargs):
     """
     uvd = copy.deepcopy(uvd)
     if not use_dayenu:
-        filter_matrix = filter_mat_simple(uvd, **filter_kwargs)
+        filter_matrix = filter_mat_simple(uvd=uvd, **filter_kwargs)
         for time in np.unique(uvd.time_array):
             data_inds = np.where(uvd.time_array == time)[0]
             for pind in range(uvd.data_array.shape[-1]):

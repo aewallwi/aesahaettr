@@ -4,8 +4,12 @@ from . import visibilities
 from . import filter
 import os
 import argparse
+import copy
 
-def simulate_and_filter(tol=1e-11, buffer_multiplier=1.0, output_dir='./', clobber=False, **sim_kwargs):
+def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
+                        compress_by_redundancy=False,
+                        bl_cutoff_buffer=np.inf, intrinsic_chromaticity_multiplier=1.0,
+                        use_dayenu=False, **sim_kwargs):
     """Simulate array configuration and apply filtering.
 
     Parameters
@@ -13,22 +17,35 @@ def simulate_and_filter(tol=1e-11, buffer_multiplier=1.0, output_dir='./', clobb
     tol: float, optional
         amount to suppress foregrounds by in matrix inversion.
         default is 1e-11.
-    buffer_multiplier: float, optional
-        factor to multiply intrinsic chromaticity of dish by in determining filter width.
-        default is 1.0
-    bl_cutoff_buffer: float, optional
-
     output_dir: str, optional
         directory to store outputs in.
         default is './'
     clobber: bool, optional
         overwrite files if they exist.
+    compress_by_redundancy: bool, optional
+        if true, only compute and filter
+        single baseline per redundant group.
+        default is False
+    bl_cutoff_buffer: float, optional
+        see docstring for covariances.cov_mat_simple.
+        default is np.inf.
+    intrinsic_chromaticity_multiplier: float, optional
+        will filter frequency modes up to intrinsice chromaticity of dish set by
+        antenna_diameter / C  * intrinsic_chromaticity_multiplier
+    use_dayenu: bool, optional
+        if true, use the per-baseline dayenu filter on data instead of
+        full inter-baseline filter.
+        invalidates bl_cutoff_buffer.
     sim_kwargs: additional optional params for simulation.
         parameters of the sky simulation. See compute_visibilities docstring.
     """
-    basename = get_basename(**sim_kwargs)
-    filtered_pbl_file = os.path.join(output_dir, basename + f'_bmult{buffer_multiplier:.2f}_tol{tol:.1e}_pbl.uvh5')
-    filtered_ibl_file = os.path.join(output_dir, basename + f'_bmult{buffer_multiplier:.2f}_tol{tol:.1e}_ibl.uvh5')
+    if 'antenna_diameter' in sim_kwargs:
+        antenna_diameter = sim_kwargs['antenna_diameter']
+    else:
+        antenna_diameter = 2.0
+    basename = visibilities.get_basename(**sim_kwargs)
+    filtered_pbl_file = os.path.join(output_dir, basename + f'_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_pbl.uvh5')
+    filtered_ibl_file = os.path.join(output_dir, basename + f'_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_ibl.uvh5')
     if (not os.path.exists(filtered_pbl_file) or not os.path.exists(filtered_ibl_file)) or not skip_existing:
         uvd_eor_name = os.path.join(output_dir, basename + '_eor.uvh5')
         uvd_gsm_name = os.path.join(output_dir, basename + '_gsm.uvh5')
@@ -38,10 +55,11 @@ def simulate_and_filter(tol=1e-11, buffer_multiplier=1.0, output_dir='./', clobb
             uvd_gsm = UVData()
             uvd_gsm.read_uvh5(uvd_gsm_name)
         else:
-            uvd_eor, uvd_gsm = compute_visibilities(output_dir=output_dir, clobber=clobber, **sim_kwargs)
+            uvd_eor, uvd_gsm = visibilities.compute_visibilities(output_dir=output_dir, clobber=clobber, **sim_kwargs)
         uvd_total = copy.deepcopy(uvd_eor)
         uvd_total.data_array = uvd_eor.data_array + uvd_gsm.data_array
-        uvd_filtered = filter_data(uvd_total, eta_max=antenna_diameter / 3e8 * buffer_multiplier, tol=tol, per_baseline=per_baseline, )
+        uvd_filtered = filter.filter_data(uvd_total, eta_max=antenna_diameter / 3e8 * intrinsic_chromaticity_multiplier,
+                                          tol=tol, use_dayenu=use_dayenu, bl_cutoff_buffer=bl_cutoff_buffer)
     return uvd_total, uvd_filtered,
 
 
