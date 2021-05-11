@@ -186,8 +186,54 @@ def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=
         uvdata.compress_by_redundancy(tol = 0.25 * 3e8 / uvdata.freq_array.max(), inplace=True)
     return uvdata, beams, beam_ids
 
+def initialize_eor(frequencies, nside_sky=defaults.nside_sky):
+    """Generate EoR sky-cube.
 
-def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clobber=False, compress_by_redundancy=True,
+    Parameters
+    ----------
+    frequencies: array-like
+        1d array of frequencies (float)
+    nside_sky: int, optional
+        nsides of healpix sky-model
+        default is set in defaults.py
+
+    Returns
+    -------
+    eorcube: array-like
+        (npix, nfreqs) array of healpix values with arbitrary units.
+    """
+    eorcube = np.random.randn(len(frequencies), hp.nside2npix(nside_sky))
+    eorcube -= eorcube.min()
+    return eorcube
+
+def initialize_gsm(frequencies, nside_sky=defaults.nside_sky):
+    """Initialize GSM.
+
+    Parameters
+    ----------
+    frequencies: array-like
+        1d-array of frequencies (float)
+    nside_sky: int
+        nsides of healpix sky-model
+
+    Returns
+    -------
+    gsmcube: array-like
+        (npix, nfreqs) array of healpix values in Jy / sr.
+    """
+    gsm = GlobalSkyModel(freq_unit='Hz')
+    rot=hp.rotator.Rotator(coord=['G', 'C'])
+    gsmcube = np.zeros((len(frequencies), hp.nside2npix(nside_sky)))
+    for fnum, f in enumerate(frequencies):
+        mapslice = gsm.generate(f)
+        mapslice = hp.ud_grade(mapslice, nside_sky)
+        # convert from galactic to celestial
+        gsmcube[fnum] = rot.rotate_map_pixel(mapslice)
+    # convert gsm cube from K to Jy / Sr. multiplying by 2 k_b / lambda^2 * ([Joules / meter^2 / Jy] =1e26)
+    gsmcube = 2 * gsmcube * 1.4e-23 / 1e-26 / (3e8 / frequencies[:, None])**2
+    return gsmcube
+
+def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.nside_sky, clobber=False, compress_by_redundancy=True,
                          keep_config_files_on_disk=False, **array_config_kwargs):
     """Compute visibilities for global sky-model with white noise EoR.
 
@@ -236,20 +282,11 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clob
     gsm_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_gsm.uvh5')
     eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_eor_{eor_fg_ratio:.1f}dB.uvh5')
     if not os.path.exists(gsm_file_name) or clobber:
-        gsm = GlobalSkyModel(freq_unit='Hz')
-        NPIX_GSM = hp.nside2npix(nside_sky)
-        rot=hp.rotator.Rotator(coord=['G', 'C'])
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                 **array_config_kwargs)
-        gsmcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
-        for fnum, f in enumerate(uvdata.freq_array[0]):
-            mapslice = gsm.generate(f)
-            mapslice = hp.ud_grade(mapslice, nside_sky)
-            # convert from galactic to celestial
-            gsmcube[fnum] = rot.rotate_map_pixel(mapslice)
-        # convert gsm cube from K to Jy / Sr. multiplying by 2 k_b / lambda^2 * ([Joules / meter^2 / Jy] =1e26)
-        gsmcube = 2 * gsmcube * 1.4e-23 / 1e-26 / (3e8 / uvdata.freq_array[0][:, None])**2
+
+        gsmcube = initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
         gsm_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
                                        beam_ids=beam_ids, sky_intensity=gsmcube)
         gsm_simulator.simulate()
@@ -269,9 +306,8 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clob
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                **array_config_kwargs)
         # define eor cube with random noise.
-        eorcube = np.random.randn(uvdata.Nfreqs, hp.nside2npix(nside_sky))
+        eorcube = initialize_eor(uvdata.freq_array[0], nside_sky)
         # make sure pixels >= zero.
-        eorcube -= eorcube.min()
         eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0],
                                        beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
         # simulator
@@ -292,3 +328,52 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=256, clob
         uvd_eor.read(eor_file_name)
 
     return uvd_gsm, uvd_eor
+
+def grid_nearest_neighbor(uvdata=None, **array_kwargs):
+    """Perform nearest neighbor gridding of visibilities to a u-nu plane.
+    """
+    return
+
+def get_sampling(uvdata=None, **array_kwargs):
+    """get sampling of the u-frequency plane for a 1d array.
+
+    Parameters
+    ----------
+    ax: matplotlib axis handle
+        axis to draw plot on. If None provided, create new axis.
+    uvdata: UVData object
+        UVdata object to visualize u-eta sampling for.
+        If None is provided, generate a UVData object from array_kwargs
+        and defaults.py parameters.
+
+    Returns
+    -------
+    ax, axis handle of current plot.
+    u_axis: u axis of sampling grid.
+    nu_axis: frequency axis of sampling grid.
+    sampling: array-like
+        2d array of u-nu sampling
+    sampling_collapsed:
+        u-only sampling
+    """
+    if 'antenna_diameter' in array_kwargs:
+        antenna_diameter = array_kwargs['antenna_diameter']
+    else:
+        antenna_diameter = defaults.antenna_diameter
+    if uvdata is None:
+        uvdata, _, _ = initialize_uvdata(**array_kwargs)
+    umax = uvdata.uvw_array[:, 0].max() * uvdata.freq_array.max() / 3e8
+    umin = uvdata.uvw_array[:, 0].min() * uvdata.freq_array.max() / 3e8
+    # half wave sampling.
+    uaxis = np.linspace(umin, umax, int(2 * np.ceil(umax - umin)))
+    nuaxis = uvdata.freq_array[0]
+    sampling = np.zeros((len(uaxis), len(nuaxis)))
+    times = np.unique(uvdata.time_array)
+    for time in times:
+        time_indices = np.where(uvdata.time_array==time)[0]
+        for fnum, freq in enumerate(uvdata.freq_array[0]):
+            for tind in time_indices:
+                u_overlap = np.where(np.abs(uvdata.uvw_array[tind, 0] * freq / 3e8 - uaxis) <= antenna_diameter * freq / 3e8)
+                sampling[u_overlap, fnum] += 1.0
+    sampling_collapsed = np.sum(sampling, axis=1)
+    return uaxis, nuaxis, sampling, sampling_collapsed

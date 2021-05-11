@@ -6,3 +6,4 @@ antenna_count = 10
 nf = 200
 df = 100e3
 f0 = 100e6
+nside_sky = 256

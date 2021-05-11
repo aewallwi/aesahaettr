@@ -11,3 +11,18 @@ def test_cov_mat_simple(tmpdir):
             assert cov_mat.shape[0] == 4 * 5 / 2 * 11
             assert cov_mat.shape[1] == cov_mat.shape[0]
             assert cov_mat.ndim == 2
+
+def test_cov_mat_simulated(tmpdir):
+    tmppath = tmpdir.strpath
+    for compress in [True, False]:
+        for mode in ['gsm', 'eor']:
+            for order_by_bl_length in [True, False]:
+                cmat_sim = covariances.cov_mat_simulated(ndraws=10, compress_by_redundancy=compress, nf=13,
+                                                         mode=mode, order_by_bl_length=order_by_bl_length, antenna_count=4,
+                                                         fractional_spacing=1.23, output_dir=tmppath, nside_sky=8)
+                if compress:
+                    assert cmat_sim.shape[0] == (13 * (4 * 5 / 2 - 3))
+                    assert cmat_sim.shape[1] == cmat_sim.shape[0]
+                else:
+                    assert cmat_sim.shape[0] == (13 * 4 * 5 / 2)
+                    assert cmat_sim.shape[1] == cmat_sim.shape[0]
