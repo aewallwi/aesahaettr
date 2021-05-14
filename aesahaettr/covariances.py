@@ -7,7 +7,8 @@ import tqdm
 import healpy as hp
 # import airy beam model.
 from hera_sim.visibilities import vis_cpu
-
+import numba
+import scipy.integrate
 
 def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
                    return_bl_lens_freqs=False, **array_config_kwargs):
@@ -83,10 +84,54 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
     else:
         return covmat
 
-def cov_airy_integral():
+
+def analytic_airy(theta, nu, antenna_diameter=defaults.antenna_diameter):
+    """An airy beam.
+
+    Parameters
+    ----------
+    theta: float
+        zenith angle (radians)
+    nu: float
+        frequency (Hz)
+    antenna_diameter: float
+        diameter of antenna (meters)
+        see defaults. antenna_diameter
+
+    Returns
+    -------
+    gain: float
+        peak normalized directivity of an analytic airy beam
+        at frequency nu and angle theta from boresight.
     """
+    x = np.sin(theta) * 2 / antenna_diameter * 3e8 / nu
+    if np.abs(x) > 0:
+        return (2 * sp.jn(1, x) / x) ** 2.
+    else:
+        return 1.
+
+
+def cov_airy_integral(nu1, nu2, baseline1, baseline2, antenna_diameter=defaults.antenna_diameter):
+    """Compute beam-baseline integral for pair of beams.
+
+    Parameters
+    ----------
+    nu1, first frequency
+    nu2, second frequency
+    baseline1, length of first baseline
+    baseline2, length of second baseline
+    antenna_diameter, diameter of antennas
+
+    Returns
+    -------
+    integral, float
+        \int A(x, nu_1) A^*(x, nu_2) sin(x) e^(-2 \pi I (u_1 - u_2)) d\Omega
+        where A(x, nu_1) is given by an airy beam with diameter antenna_diameter
     """
-    return
+    integrand = lambda x: analytic_airy(x, nu1, antenna_diameter) * analytic_airy(x, nu2, antenna_diameter) * \
+                                           sp.jn(0, np.linalg.norm(baseline1 * nu1 / 3e8 - baseline2 * nu2 / 3e8) * np.sin(x)) * np.sin(x)
+    integral = 2 * np.pi * scipy.integrate(integrand, 0, np.pi / 2.)
+
 
 
 def cov_element_airy(signal_frequency_covariance=None):
