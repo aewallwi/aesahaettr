@@ -90,10 +90,27 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
 
 @numba.jit(nopython=True)
 def airy_cov_integrand(theta, nu1, nu2, baseline1, baseline2, antenna_diameter=defaults.antenna_diameter):
-    """
+    """Integrand in covariance between two baselines with airy-beams and spatially uncorrelated flat-spectrum sources.
 
     Parameters
     ----------
+    theta: float
+        direction on the sky.
+    nu1: float
+        frequency of first baseline (MHz)
+    nu2: float
+        frequency of second baseline
+    baseline1: float
+        EW length of baseline1
+    baseline2: float
+        EW length of baseline2
+    antenna_diameter: float, optional
+        diameter of antennas dermining airy beam.
+
+    Returns
+    -------
+    integrand:  float
+        A(\hat{s}, nu_1) A(hat{s}, nu_2) e^{-2 pi I (u_1 -u_2) \cdot \hat{s}} f
 
     """
     x1 = np.sin(theta) * 2 / antenna_diameter * 3e8 / nu1
