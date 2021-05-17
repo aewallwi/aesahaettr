@@ -128,22 +128,6 @@ def airy_cov_integrand(theta, nu1, nu2, baseline1, baseline2, antenna_diameter=d
     return integrand
 
 
-def loop_over_cov_matrix(blvals, nuvals, correlated_freqs=True, antenna_diameter=defaults.antenna_diameter):
-    nx = len(blvals)
-    covmat = np.zeros((nx, nx))
-    for i, j in itertools.combinations(range(nx), 2):
-        if correlated_freqs or nuvals[i] == nuvals[j]:
-            #covmat[i, j] = cov_airy_integral(nuvals[i], nuvals[j], blvals[i], blvals[j],
-            #                                 antenna_diameter=antenna_diameter)
-            covmat[i, j] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
-                                                      args=(nuvals[i], nuvals[j], blvals[i], blvals[j], antenna_diameter))[0]
-            covmat[j, i] = covmat[i, j]
-    for i in range(nx):
-        covmat[i, i] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
-                                                  args=(nuvals[i], nuvals[i], blvals[i], blvals[i], antenna_diameter))[0]
-    return covmat
-
-
 def cov_matrix_airy(compress_by_redundancy=False, output_dir='./', mode='foregrounds', correlated_freqs=True,
                     clobber=True, order_by_bl_length=False, **array_config_kwargs):
     """Covariance for flat-spectrum unclustered sources viewed by an array with an airy beam.
@@ -188,9 +172,19 @@ def cov_matrix_airy(compress_by_redundancy=False, output_dir='./', mode='foregro
             data_inds = data_inds[np.argsort(np.abs(uvdata.uvw_array[data_inds, 0]))]
         blvals = np.outer(uvdata.uvw_array[data_inds, 0], np.ones_like(uvdata.freq_array[0])).flatten()
         nuvals = np.outer(np.ones(uvdata.Nbls), uvdata.freq_array[0]).flatten()
-    cov_mat = loop_over_cov_matrix(blvals, nuvals, correlated_freqs=correlated_freqs,
-                                   antenna_diameter=array_config_kwargs['antenna_diameter'])
-    return cov_mat
+    nx = len(blvals)
+    covmat = np.zeros((nx, nx))
+    for i, j in itertools.combinations(range(nx), 2):
+        if correlated_freqs or nuvals[i] == nuvals[j]:
+            #covmat[i, j] = cov_airy_integral(nuvals[i], nuvals[j], blvals[i], blvals[j],
+            #                                 antenna_diameter=antenna_diameter)
+            covmat[i, j] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
+                                                      args=(nuvals[i], nuvals[j], blvals[i], blvals[j], array_config_kwargs['antenna_diameter']))[0]
+            covmat[j, i] = covmat[i, j]
+    for i in range(nx):
+        covmat[i, i] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
+                                                  args=(nuvals[i], nuvals[i], blvals[i], blvals[i], array_config_kwargs['antenna_diameter']))[0]
+    return covmat
 
 
 def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./', mode='gsm',
