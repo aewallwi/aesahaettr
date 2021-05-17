@@ -8,7 +8,10 @@ import healpy as hp
 # import airy beam model.
 from hera_sim.visibilities import vis_cpu
 import numba
-import scipy.integrate
+import scipy.integrate as integrate
+import itertools
+import scipy.special as sp
+import numba_special
 
 def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
                    return_bl_lens_freqs=False, **array_config_kwargs):
@@ -85,60 +88,93 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
         return covmat
 
 
-def analytic_airy(theta, nu, antenna_diameter=defaults.antenna_diameter):
-    """An airy beam.
+@numba.jit(nopython=True)
+def airy_cov_integrand(theta, nu1, nu2, baseline1, baseline2, antenna_diameter=defaults.antenna_diameter):
+    """
 
     Parameters
     ----------
-    theta: float
-        zenith angle (radians)
-    nu: float
-        frequency (Hz)
-    antenna_diameter: float
-        diameter of antenna (meters)
-        see defaults. antenna_diameter
 
-    Returns
-    -------
-    gain: float
-        peak normalized directivity of an analytic airy beam
-        at frequency nu and angle theta from boresight.
     """
-    x = np.sin(theta) * 2 / antenna_diameter * 3e8 / nu
-    if np.abs(x) > 0:
-        return (2 * sp.jn(1, x) / x) ** 2.
+    x1 = np.sin(theta) * 2 / antenna_diameter * 3e8 / nu1
+    x2 = np.sin(theta) * 2 / antenna_diameter * 3e8 / nu2
+    if x1 > 0:
+        airy1 = (2 * sp.j1(x1) / x1) ** 2.
     else:
-        return 1.
+        airy1 = 1.
+    if x2 > 0:
+        airy2 = (2 * sp.j1(x2) / x2) ** 2.
+    else:
+        airy2 = 1.
+    du = np.abs(baseline1 * nu1 / 3e8 - baseline2 * nu2 / 3e8)
+    integrand = airy1 * airy2 * sp.j0(du * np.sin(theta)) * np.sin(theta)
+    return integrand
 
 
-def cov_airy_integral(nu1, nu2, baseline1, baseline2, antenna_diameter=defaults.antenna_diameter):
-    """Compute beam-baseline integral for pair of beams.
+def loop_over_cov_matrix(blvals, nuvals, correlated_freqs=True, antenna_diameter=defaults.antenna_diameter):
+    nx = len(blvals)
+    covmat = np.zeros((nx, nx))
+    for i, j in itertools.combinations(range(nx), 2):
+        if correlated_freqs or nuvals[i] == nuvals[j]:
+            #covmat[i, j] = cov_airy_integral(nuvals[i], nuvals[j], blvals[i], blvals[j],
+            #                                 antenna_diameter=antenna_diameter)
+            covmat[i, j] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
+                                                      args=(nuvals[i], nuvals[j], blvals[i], blvals[j], antenna_diameter))[0]
+            covmat[j, i] = covmat[i, j]
+    for i in range(nx):
+        covmat[i, i] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
+                                                  args=(nuvals[i], nuvals[i], blvals[i], blvals[i], antenna_diameter))[0]
+    return covmat
+
+
+def cov_matrix_airy(compress_by_redundancy=False, output_dir='./', mode='foregrounds', correlated_freqs=True,
+                    clobber=True, order_by_bl_length=False, **array_config_kwargs):
+    """Covariance for flat-spectrum unclustered sources viewed by an array with an airy beam.
 
     Parameters
     ----------
-    nu1, first frequency
-    nu2, second frequency
-    baseline1, length of first baseline
-    baseline2, length of second baseline
-    antenna_diameter, diameter of antennas
+    compress_by_redundancy: bool, optional
+        if True, only compute covariance for one baseline per redundant group.
+    output_dir: str, optional
+        where to write template container
+    correlated_freqs: bool, optional
+        if true, assume that frequencies are correlated.
+    nside_sky: int, optional
+        nsides of healpix sky to simulate.
+    clobber: bool, optional
+        if true, overwrite existing files. If not, dont.
+        only applies to templaet data.
 
     Returns
     -------
-    integral, float
-        \int A(x, nu_1) A^*(x, nu_2) sin(x) e^(-2 \pi I (u_1 - u_2)) d\Omega
-        where A(x, nu_1) is given by an airy beam with diameter antenna_diameter
+    cov-mat: array-like
+        covariance matrix that is (Nfreqs * Nbls) x (Nfreqs * Nbls)
+        derived from randomly drawing a simulated sky.
+
     """
-    integrand = lambda x: analytic_airy(x, nu1, antenna_diameter) * analytic_airy(x, nu2, antenna_diameter) * \
-                                           sp.jn(0, np.linalg.norm(baseline1 * nu1 / 3e8 - baseline2 * nu2 / 3e8) * np.sin(x)) * np.sin(x)
-    integral = 2 * np.pi * scipy.integrate(integrand, 0, np.pi / 2.)
+    if 'antenna_diameter' not in array_config_kwargs:
+        array_config_kwargs['antenna_diameter'] = defaults.antenna_diameter
+    uvdata, beams, beam_ids = visibilities.initialize_uvdata(output_dir=output_dir, clobber=clobber,
+                                                             **array_config_kwargs)
+    if compress_by_redundancy:
+        uvdata_compressed = uvdata.compress_by_redundancy(tol = 0.25 * 3e8 / uvdata.freq_array.max(), inplace=False)
+        nblfrqs = uvdata_compressed.Nbls * uvdata_compressed.Nfreqs
+        data_inds = np.where(uvdata_compressed.time_array == uvdata.time_array[0])[0]
+        if order_by_bl_length:
+            data_inds = data_inds[np.argsort(np.abs(uvdata_compressed.uvw_array[data_inds, 0]))]
+        blvals = np.outer(uvdata_compressed.uvw_array[data_inds, 0], np.ones_like(uvdata_compressed.freq_array[0])).flatten()
+        nuvals = np.outer(np.ones(uvdata_compressed.Nbls), uvdata_compressed.freq_array[0]).flatten()
+    else:
+        data_inds = np.where(uvdata.time_array == uvdata.time_array[0])[0]
+        nblfrqs = uvdata.Nbls * uvdata.Nfreqs
+        if order_by_bl_length:
+            data_inds = data_inds[np.argsort(np.abs(uvdata.uvw_array[data_inds, 0]))]
+        blvals = np.outer(uvdata.uvw_array[data_inds, 0], np.ones_like(uvdata.freq_array[0])).flatten()
+        nuvals = np.outer(np.ones(uvdata.Nbls), uvdata.freq_array[0]).flatten()
+    cov_mat = loop_over_cov_matrix(blvals, nuvals, correlated_freqs=correlated_freqs,
+                                   antenna_diameter=array_config_kwargs['antenna_diameter'])
+    return cov_mat
 
-
-
-def cov_element_airy(signal_frequency_covariance=None):
-    """Covariance matrix between airy-beams and flat foregrounds.
-
-    signal_frequency_covariance: function nu_1, nu_2 -> covariance, optional.
-    """
 
 def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./', mode='gsm',
                      nside_sky=defaults.nside_sky, clobber=True, order_by_bl_length=False,
@@ -162,7 +198,11 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
         if true, overwrite existing files. If not, dont.
         only applies to templaet data.
 
-
+    Returns
+    -------
+    cov-mat: array-like
+        covariance matrix that is (Nfreqs * Nbls) x (Nfreqs * Nbls)
+        derived from randomly drawing a simulated sky.
     """
     uvdata, beams, beam_ids = visibilities.initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                 **array_config_kwargs)
@@ -205,12 +245,3 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
     mean_mat = mean_mat / ndraws
     cov_mat = cov_mat / ndraws - np.outer(mean_mat, np.conj(mean_mat))
     return cov_mat
-
-def cov_mat_eor_simulated(nsamples=1000):
-    """Estimate a bootstrapped eor covariance matrix using random gaussian draws.
-    """
-
-    covmat += np.outer(vis_sample, np.conj(vis_sample))
-    meanmat += vis_sample
-
-    return

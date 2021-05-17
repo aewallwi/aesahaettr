@@ -26,3 +26,19 @@ def test_cov_mat_simulated(tmpdir):
                 else:
                     assert cmat_sim.shape[0] == (13 * 4 * 5 / 2)
                     assert cmat_sim.shape[1] == cmat_sim.shape[0]
+
+def test_cov_matrix_airy(tmpdir):
+    tmppath = tmpdir.strpath
+    for compress in [True, False]:
+        for corr_freqs in [True, False]:
+            for order_by_bl_length in [True, False]:
+                cmat_airy = covariances.cov_matrix_airy(compress_by_redundancy=compress, nf=13,
+                                                        correlated_freqs=corr_freqs,
+                                                        order_by_bl_length=order_by_bl_length, antenna_count=4,
+                                                        fractional_spacing=1.23, output_dir=tmppath)
+                if compress:
+                    assert cmat_airy.shape[0] == (13 * (4 * 5 / 2 - 3))
+                    assert cmat_airy.shape[1] == cmat_airy.shape[0]
+                else:
+                    assert cmat_airy.shape[0] == (13 * 4 * 5 / 2)
+                    assert cmat_airy.shape[1] == cmat_airy.shape[0]
