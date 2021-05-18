@@ -3,7 +3,7 @@ from uvtools import dspec
 import numpy as np
 from .  import covariances
 
-def filter_mat_simple(tol=1e-9, **cov_kwargs):
+def filter_mat_simple(tol=1e-9, use_sparseness=False, **cov_kwargs):
     """
     Generate a simple filtering matrix using cov_mat_simple.
 
@@ -12,6 +12,8 @@ def filter_mat_simple(tol=1e-9, **cov_kwargs):
     tol: float, optional
         amount to suppress foreground modes in the simple filter matrix.
         default is 0.0
+    use_sparseness: bool, optional
+        if True, try speeding up inverse with sparse compression.
     cov_kwargs: dict, optional
         keyword arguments for cov_mat_simple. See cov_mat_simple docstring
         for details. Can include uvdata object with array to filter or
@@ -26,7 +28,12 @@ def filter_mat_simple(tol=1e-9, **cov_kwargs):
     """
     cmat_simple = covariances.cov_mat_simple(**cov_kwargs)
     cmat_simple = cmat_simple / tol + np.identity(cmat_simple.shape[0])
-    return np.linalg.pinv(cmat_simple)
+    if 'bl_cutoff_buffer' in cov_kwargs and np.isfinite(cov_kwargs['bl_cutoff_buffer']) and use_sparseness:
+        cmat_simple = covariances.convert_to_sparse_bands(cmat_simple)
+        # compute sparse inversion and return array.
+        return scipy.sparse.linalg.inv(cmat_simple).to_array()
+    else:
+        return np.linalg.pinv(cmat_simple)
 
 def filter_data(uvd, use_dayenu=False, **filter_kwargs):
     """
