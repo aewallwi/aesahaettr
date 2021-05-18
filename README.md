@@ -1,2 +1,2 @@
 # Aesahaettr
-Uses the subtle correlations to cut between the cosmic dawn and nearby emission, even inside of the wedge.
+I knife so sharp that it can cut between the 21cm fluctuations and radio foregrounds inside of the wedge.
