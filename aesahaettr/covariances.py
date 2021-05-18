@@ -12,7 +12,7 @@ import scipy.integrate as integrate
 import itertools
 import scipy.special as sp
 import numba_special
-
+import scipy.sparse as sparse
 
 def convert_to_sparse_bands(cov_matrix):
     """convert covariance matrix to a sparse banded matrix (if possible)
@@ -38,7 +38,7 @@ def convert_to_sparse_bands(cov_matrix):
         if np.any(np.abs(np.asarray(band)) > 0.):
             diagonals.append(band)
             offsets.append(-k)
-    dia_matrix = scipy.sparse.diags(diag_list, offsets)
+    dia_matrix = sparse.diags(diag_list, offsets)
     return dia_matrix
 
 
@@ -329,7 +329,7 @@ def cov_mat_simple_evecs(eigenval_cutoff=1e-10, sparse=False, **cov_mat_simple_k
     cmat, uvdata = cov_mat_simple(return_uvdata=True, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_args)
     if sparse and 'bl_cutoff_buffer' in cov_mat_simple_args and np.isfinite(cov_mat_simple_args['bl_cutoff_buffer']):
         cmat = convert_to_sparse_bands(cmat)
-        evals, evecs = scipy.sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2)
+        evals, evecs = sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2)
     else:
         evals, evecs = scipy.linalg.eigh(cmat)
     evalorder = np.argsort(evals)
