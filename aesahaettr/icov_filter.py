@@ -2,6 +2,7 @@ import copy
 from uvtools import dspec
 import numpy as np
 from .  import covariances
+from scipy import sparse
 
 def filter_mat_simple(tol=1e-9, use_sparseness=False, **cov_kwargs):
     """
@@ -31,7 +32,7 @@ def filter_mat_simple(tol=1e-9, use_sparseness=False, **cov_kwargs):
     if 'bl_cutoff_buffer' in cov_kwargs and np.isfinite(cov_kwargs['bl_cutoff_buffer']) and use_sparseness:
         cmat_simple = covariances.convert_to_sparse_bands(cmat_simple)
         # compute sparse inversion and return array.
-        return scipy.sparse.linalg.inv(cmat_simple).to_array()
+        return sparse.linalg.inv(cmat_simple).toarray()
     else:
         return np.linalg.pinv(cmat_simple)
 
@@ -105,4 +106,4 @@ def filter_covariance(cov_matrix, uvd=None, return_diag_as_uvdata=True, **array_
     Returns
     -------
     """
-    return
+    raise NotImplementedError("This function has not yet been written.")

@@ -38,7 +38,7 @@ def convert_to_sparse_bands(cov_matrix):
         if np.any(np.abs(np.asarray(band)) > 0.):
             diagonals.append(band)
             offsets.append(-k)
-    dia_matrix = sparse.diags(diag_list, offsets)
+    dia_matrix = sparse.diags(diagonals, offsets)
     return dia_matrix
 
 
@@ -306,37 +306,43 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
 
 
 
-def cov_mat_simple_evecs(eigenval_cutoff=1e-10, sparse=False, **cov_mat_simple_kwargs):
+def cov_mat_simple_evecs(eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, **cov_mat_simple_kwargs):
     """Generate eigenvectors of cov_mat_simple covariance to fit data.
 
     Parameters
     ----------
     eigenval_cutoff: float, optional
         include eigenvectors with eigenvals above this fraction of max eigenval.
-    sparse: bool, optional
+    use_sparseness: bool, optional
         treate covariance as sparse banded matrix to speed up eigenvector estimation
         requires cov_mat_simple_kwargs['bl_cutoff_buffer'] finite.
-    cov_mat_simple_kwargs: kwargs dict
+    eig_kwarg_dict: dictionary, optional
+        dict of kwargs for scipy.sparse.linalg.eigsh or np.linalg.eigh.
+    cov_mat_simple_kwargs: kwargs
         kwargs for cov_mat_simple except for return_bl_lens_freqs and order_by_bl_length
         See cov_mat_simple docstring.
-
     Returns
     -------
+    evals: array-like
+        Array of eigenvalues.
     evecs: array-like
         Nvecs x Nbls x Nfreqs array where each slice in the 0th dim
         is an eigenvector of cov_mat_simple reshaped into the proper uvdata shape.
     """
+    if eig_kwarg_dict is None:
+        eig_kwarg_dict = {}
     cmat, uvdata = cov_mat_simple(return_uvdata=True, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_kwargs)
-    if sparse and 'bl_cutoff_buffer' in cov_mat_simple_kwargs and np.isfinite(cov_mat_simple_kwargs['bl_cutoff_buffer']):
+    if use_sparseness and 'bl_cutoff_buffer' in cov_mat_simple_kwargs and np.isfinite(cov_mat_simple_kwargs['bl_cutoff_buffer']):
         cmat = convert_to_sparse_bands(cmat)
-        evals, evecs = sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2)
+        evals, evecs = sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2, **eig_kwarg_dict)
     else:
-        evals, evecs = np.linalg.eigh(cmat)
-    evalorder = np.argsort(evals)
+        evals, evecs = np.linalg.eigh(cmat, **eig_kwarg_dict)
+    evalorder = np.argsort(evals)[::-1]
     evals = evals[evalorder]
     evecs = evecs[:, evalorder].T
     to_keep = evals >= evals.max() * eigenval_cutoff
     evecs = evecs[to_keep]
+    evals = evals[to_keep]
     # reshape evecs to uvdata data_array
     evecs = np.asarray([evec.reshape(uvdata.Nbls, uvdata.Nfreqs) for evec in evecs])
-    return evecs
+    return evals, evecs

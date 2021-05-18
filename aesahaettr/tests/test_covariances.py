@@ -15,15 +15,24 @@ def test_cov_mat_simple(tmpdir):
 def test_cov_mat_simple_evecs(tmpdir):
     tmppath = tmpdir.strpath
     for blcut in [np.inf, 0., 10]:
-        for sparse in [True, False]:
-            for compress in [True, False]:
-                evecs = covariances.cov_mat_simple_evecs(sparse=sparse, output_dir=tmppath, antenna_count=4, nf=11,
-                                                         fractional_spacing=1.23, compress_by_redundancy=compress)
+        for compress in [True, False]:
+            evecs = {}
+            evals={}
+            for sparse in [True, False]:
+                evals[sparse], evecs[sparse] = covariances.cov_mat_simple_evecs(use_sparseness=sparse, output_dir=tmppath, antenna_count=4, nf=11,
+                                                                                bl_cutoff_buffer=blcut, fractional_spacing=1.23,
+                                                                                compress_by_redundancy=compress)
                 if not compress:
-                    assert evecs.shape[1] == 4 * 5 / 2
+                    assert evecs[sparse].shape[1] == 4 * 5 / 2
                 else:
-                    assert evecs.shape[1] == (4 * 5 / 2 - 3)
-                assert evecs.shape[2] == 11
+                    assert evecs[sparse].shape[1] == (4 * 5 / 2 - 3)
+                assert evecs[sparse].shape[2] == 11
+            # test that sparse and non sparse are close.
+            if blcut == 0.:
+                nvals = min(len(evals[True]), len(evals[False]))
+                assert np.allclose(evals[True][:nvals], evals[False][:nvals])
+                for j in range(nvals):
+                    assert np.allclose(np.abs(evecs[True][j]), np.abs(evecs[False][j]), rtol=0., atol=1e-6)
 
 
 
