@@ -12,6 +12,21 @@ def test_cov_mat_simple(tmpdir):
             assert cov_mat.shape[1] == cov_mat.shape[0]
             assert cov_mat.ndim == 2
 
+def test_cov_mat_simple_evecs(tmpdir):
+    tmppath = tmpdir.strpath
+    for blcut in [np.inf, 0., 10]:
+        for sparse in [True, False]:
+            for compress in [True, False]:
+                evecs = covariances.cov_mat_simple_evecs(sparse=sparse, output_dir=tmppath, antenna_count=4, nf=11,
+                                                         fractional_spacing=1.23, compress_by_redundancy=compress)
+                if not compress:
+                    assert evecs.shape[1] == 4 * 5 / 2
+                else:
+                    assert evecs.shape[1] == (4 * 5 / 2 - 3)
+                assert evecs.shape[2] == 11
+
+
+
 def test_cov_mat_simulated(tmpdir):
     tmppath = tmpdir.strpath
     for compress in [True, False]:

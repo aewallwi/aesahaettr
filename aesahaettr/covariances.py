@@ -326,12 +326,12 @@ def cov_mat_simple_evecs(eigenval_cutoff=1e-10, sparse=False, **cov_mat_simple_k
         Nvecs x Nbls x Nfreqs array where each slice in the 0th dim
         is an eigenvector of cov_mat_simple reshaped into the proper uvdata shape.
     """
-    cmat, uvdata = cov_mat_simple(return_uvdata=True, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_args)
-    if sparse and 'bl_cutoff_buffer' in cov_mat_simple_args and np.isfinite(cov_mat_simple_args['bl_cutoff_buffer']):
+    cmat, uvdata = cov_mat_simple(return_uvdata=True, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_kwargs)
+    if sparse and 'bl_cutoff_buffer' in cov_mat_simple_kwargs and np.isfinite(cov_mat_simple_kwargs['bl_cutoff_buffer']):
         cmat = convert_to_sparse_bands(cmat)
         evals, evecs = sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2)
     else:
-        evals, evecs = scipy.linalg.eigh(cmat)
+        evals, evecs = np.linalg.eigh(cmat)
     evalorder = np.argsort(evals)
     evals = evals[evalorder]
     evecs = evecs[:, evalorder].T
