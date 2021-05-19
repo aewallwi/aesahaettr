@@ -3,6 +3,30 @@ from uvtools import dspec
 import numpy as np
 from .  import covariances
 from scipy import sparse
+from scipy import linalg
+
+def inv_banded(banded_matrix):
+    """Invert a sparse banded matrix.
+
+    Parameters
+    ----------
+    banded_matrix: scipy.sparse.diag_matrix
+        banded matrix in scipy.sparse.diag_matrix format.
+
+    Returns
+    -------
+    inv_matrix: array-like
+        inverse of sparse banded matrix.
+    """
+    banded_matrix = banded_matrix.toarray()
+    nrows = banded_matrix.shape[0]
+    nbands = np.min([np.count_nonzero(row) for row in banded_matrix])
+    ab = np.zeros((nbands, nrows))
+    for i in np.arange(1, nbands):
+        ab[i, :] = np.concatenate((np.diag(banded_matrix, k=i), np.zeros(i,)), axis=None)
+    ab[0, :] = np.diag(banded_matrix, k=0)
+    inv_matrix = linalg.solveh_banded(ab, np.eye(nrows), lower=True)
+    return inv_matrix
 
 def filter_mat_simple(tol=1e-9, use_sparseness=False, **cov_kwargs):
     """
@@ -32,9 +56,10 @@ def filter_mat_simple(tol=1e-9, use_sparseness=False, **cov_kwargs):
     if 'bl_cutoff_buffer' in cov_kwargs and np.isfinite(cov_kwargs['bl_cutoff_buffer']) and use_sparseness:
         cmat_simple = covariances.convert_to_sparse_bands(cmat_simple)
         # compute sparse inversion and return array.
-        return sparse.linalg.inv(cmat_simple).toarray()
+        filter_matrix = inv_banded(cmat_simple)
     else:
-        return np.linalg.pinv(cmat_simple)
+        filter_matrix = linalg.pinvh(cmat_simple)
+    return filter_matrix
 
 def filter_data(uvd, use_dayenu=False, **filter_kwargs):
     """
@@ -74,7 +99,7 @@ def filter_data(uvd, use_dayenu=False, **filter_kwargs):
             for pind in range(uvd.data_array.shape[-1]):
                 for rownum in range(uvd.data_array[data_inds, 0, :, pind].squeeze().shape[0]):
                     drow = uvd.data_array[data_inds, 0, :, pind][rownum].squeeze()
-                    fw = filter_kwargs['antenna_chromaticity'] + np.linalg.norm(uvd.uvw_array[data_inds[rownum]]) / 3e8
+                    fw = filter_kwargs['antenna_chromaticity'] + linalg.norm(uvd.uvw_array[data_inds[rownum]]) / 3e8
                     filtered\
                     = dspec.dayenu_filter(x=uvd.freq_array[0], data=drow,
                                           wgts=np.ones(uvd.Nfreqs),

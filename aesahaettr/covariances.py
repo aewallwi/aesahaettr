@@ -11,7 +11,6 @@ import numba
 import scipy.integrate as integrate
 import itertools
 import scipy.special as sp
-import numba_special
 import scipy.sparse as sparse
 
 def convert_to_sparse_bands(cov_matrix):

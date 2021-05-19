@@ -10,7 +10,7 @@ from . import defaults
 def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
                         compress_by_redundancy=False,
                         bl_cutoff_buffer=np.inf, intrinsic_chromaticity_multiplier=1.0,
-                        use_dayenu=False, **sim_kwargs):
+                        use_dayenu=False, use_sparseness=False, **sim_kwargs):
     """Simulate array configuration and apply filtering.
 
     Parameters
@@ -37,6 +37,8 @@ def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
         if true, use the per-baseline dayenu filter on data instead of
         full inter-baseline filter.
         invalidates bl_cutoff_buffer.
+    use_sparseness: bool, optional
+        take advantage of sparseness of covariance matrix to calculate inverses.
     sim_kwargs: additional optional params for simulation.
         parameters of the sky simulation. See compute_visibilities docstring.
     """
@@ -60,7 +62,7 @@ def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
         uvd_total = copy.deepcopy(uvd_eor)
         uvd_total.data_array = uvd_eor.data_array + uvd_gsm.data_array
         uvd_filtered = icov_filter.filter_data(uvd_total, antenna_chromaticity=antenna_diameter / 3e8 * intrinsic_chromaticity_multiplier,
-                                          tol=tol, use_dayenu=use_dayenu, bl_cutoff_buffer=bl_cutoff_buffer)
+                                          tol=tol, use_dayenu=use_dayenu, bl_cutoff_buffer=bl_cutoff_buffer, use_sparseness=use_sparseness)
     return uvd_total, uvd_filtered,
 
 
