@@ -44,7 +44,7 @@ def convert_to_sparse_bands(cov_matrix):
 
 
 def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
-                   return_bl_lens_freqs=False, return_uvdata=False, **array_config_kwargs):
+                   return_bl_lens_freqs=False, return_uvdata=False, intra_baseline_only=False, **array_config_kwargs):
     """
     A covariance matrix that is both simple and flexible enough to describe
     the covariances within the wedge and simple antennas.
@@ -66,6 +66,8 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
         If true, order columns and rows by increasing baseline length.
     return bl_len_freqs: bool, optional
         if True, return vector of baseline lengths and frequencies.
+    intra_baseline_only: bool, optional
+        if True, only keep blocks corresponding to the same baseline.
     array_config_kwargs: kwarg dict
         kargs for visibilities.initialize_uvdata
         see docstring.
@@ -113,6 +115,8 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
             for j, bj in enumerate(np.abs(blvals)):
                 if (min(bi, bj) + bl_cutoff_buffer) * max_freq < max(bi, bj) * min_freq:
                         covmat[i, j] = 0.
+        if intra_baseline_only:
+            covmat[~np.isclose(u_x / nu_x * 3e8, u_y / nu_y * 3e8)] = 0.
     if return_bl_lens_freqs:
         if return_uvdata:
             return blvals, nuvals, covmat, uvd
