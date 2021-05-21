@@ -10,8 +10,10 @@ from hera_sim.visibilities import vis_cpu
 import numba
 import scipy.integrate as integrate
 import itertools
+import numba_scipy
 import scipy.special as sp
 import scipy.sparse as sparse
+from multiprocessing import Pool
 
 def convert_to_sparse_bands(cov_matrix):
     """convert covariance matrix to a sparse banded matrix (if possible)
@@ -165,6 +167,7 @@ def airy_cov_integrand(theta, nu1, nu2, baseline1, baseline2, antenna_diameter=d
 
 def cov_matrix_airy(uvdata=None, output_dir='./', mode='foregrounds', correlated_freqs=True,
                     clobber=True, order_by_bl_length=False, bl_cutoff_buffer=np.inf, return_uvdata=False,
+                    parallelize=False,
                     **array_config_kwargs):
     """Covariance for flat-spectrum unclustered sources viewed by an array with an airy beam.
 
@@ -203,25 +206,40 @@ def cov_matrix_airy(uvdata=None, output_dir='./', mode='foregrounds', correlated
     blvals = np.outer(uvdata.uvw_array[data_inds, 0], np.ones_like(uvdata.freq_array[0])).flatten()
     nuvals = np.outer(np.ones(uvdata.Nbls), uvdata.freq_array[0]).flatten()
     nx = len(blvals)
-    covmat = np.zeros((nx, nx))
     min_freq = uvdata.freq_array.min()
     max_freq = uvdata.freq_array.max()
-    for i, j in itertools.combinations(range(nx), 2):
-        if correlated_freqs or nuvals[i] == nuvals[j]:
-            if (min(blvals[i], blvals[j]) + bl_cutoff_buffer) * max_freq < max(blvals[i], blvals[j]) * min_freq:
-                covmat[i, j] = 0.
-                covmat[j, i] = 0.
-            else:
-                covmat[i, j] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
-                                                          args=(nuvals[i], nuvals[j], blvals[i], blvals[j], array_config_kwargs['antenna_diameter']))[0]
-                covmat[j, i] = covmat[i, j]
-    for i in range(nx):
-        covmat[i, i] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
-                                                  args=(nuvals[i], nuvals[i], blvals[i], blvals[i], array_config_kwargs['antenna_diameter']))[0]
+    if not parallelize:
+        covmat = np.zeros((nx, nx))
+        for i, j in itertools.combinations(range(nx), 2):
+            if correlated_freqs or nuvals[i] == nuvals[j]:
+                if (min(blvals[i], blvals[j]) + bl_cutoff_buffer) * max_freq < max(blvals[i], blvals[j]) * min_freq:
+                    covmat[i, j] = 0.
+                    covmat[j, i] = 0.
+                else:
+                    covmat[i, j] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
+                                                              args=(nuvals[i], nuvals[j], blvals[i], blvals[j], array_config_kwargs['antenna_diameter']))[0]
+                    covmat[j, i] = covmat[i, j]
+        for i in range(nx):
+            covmat[i, i] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
+                                                      args=(nuvals[i], nuvals[i], blvals[i], blvals[i], array_config_kwargs['antenna_diameter']))[0]
+    else:
+        raise NotImplementedError("parallelized integral calculation not yet implemented but needs to be!")
+        pool = Pool()
+        tasks = []
     if return_uvdata:
         return covmat, uvdata
     else:
         return covmat
+
+def process_matrix_element(bl1, bl2, nu1, nu2, min_freq, max_freq, antenna_diameter, correlated_freqs=True):
+    if correlated_freqs or nu1 == nu2:
+        if (min(bl1, bl2) + bl_cutoff_buffer) * max_freq < max(bl1, bl2) * min_freq:
+            return 0.0
+        else:
+            return 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
+                                              args=(nu1, nu2, bl1, bl2, antenna_diameter))[0]
+    else:
+        return 0.0
 
 def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./', mode='gsm',
                      nside_sky=defaults.nside_sky, clobber=True, order_by_bl_length=False,
@@ -305,7 +323,7 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
 
 
 
-def cov_mat_simple_evecs(eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, **cov_mat_simple_kwargs):
+def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, **cov_mat_simple_kwargs):
     """Generate eigenvectors of cov_mat_simple covariance to fit data.
 
     Parameters
@@ -325,12 +343,15 @@ def cov_mat_simple_evecs(eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_
     evals: array-like
         Array of eigenvalues.
     evecs: array-like
-        Nvecs x Nbls x Nfreqs array where each slice in the 0th dim
+        (Nbls x Nfreqs) x Nvecs array where each slice in the 0th dim
         is an eigenvector of cov_mat_simple reshaped into the proper uvdata shape.
     """
     if eig_kwarg_dict is None:
         eig_kwarg_dict = {}
-    cmat, uvdata = cov_mat_simple(return_uvdata=True, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_kwargs)
+    if uvdata is None:
+        cmat, uvdata = cov_mat_simple(return_uvdata=True, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_kwargs)
+    else:
+        cmat = cov_mat_simple(uvd=uvdata, return_uvdata=False, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_kwargs)
     if use_sparseness and 'bl_cutoff_buffer' in cov_mat_simple_kwargs and np.isfinite(cov_mat_simple_kwargs['bl_cutoff_buffer']):
         cmat = convert_to_sparse_bands(cmat)
         evals, evecs = sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2, **eig_kwarg_dict)
@@ -338,10 +359,9 @@ def cov_mat_simple_evecs(eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_
         evals, evecs = np.linalg.eigh(cmat, **eig_kwarg_dict)
     evalorder = np.argsort(evals)[::-1]
     evals = evals[evalorder]
-    evecs = evecs[:, evalorder].T
+    evecs = evecs[:, evalorder]
     to_keep = evals >= evals.max() * eigenval_cutoff
-    evecs = evecs[to_keep]
+    evecs = evecs[:, to_keep]
     evals = evals[to_keep]
     # reshape evecs to uvdata data_array
-    evecs = np.asarray([evec.reshape(uvdata.Nbls, uvdata.Nfreqs) for evec in evecs])
     return evals, evecs
