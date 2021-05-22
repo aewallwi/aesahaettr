@@ -115,8 +115,8 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
             for j, bj in enumerate(np.abs(blvals)):
                 if (min(bi, bj) + bl_cutoff_buffer) * max_freq < max(bi, bj) * min_freq:
                         covmat[i, j] = 0.
-        if intra_baseline_only:
-            covmat[~np.isclose(u_x / nu_x * 3e8, u_y / nu_y * 3e8)] = 0.
+    if intra_baseline_only:
+        covmat[~np.isclose(u_x / nu_x * 3e8, u_y / nu_y * 3e8)] = 0.
     if return_bl_lens_freqs:
         if return_uvdata:
             return blvals, nuvals, covmat, uvd
