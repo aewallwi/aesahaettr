@@ -280,7 +280,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
     # generate GSM cube
     basename = get_basename(**array_config_kwargs)
     gsm_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_gsm.uvh5')
-    eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_eor_{eor_fg_ratio:.1f}dB.uvh5')
+    eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_eor_{np.log10(eor_fg_ratio) * 10:.1f}dB.uvh5')
     if not os.path.exists(gsm_file_name) or clobber:
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
