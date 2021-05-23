@@ -321,10 +321,10 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
         if compress_by_redundancy:
             # compress with quarter wavelength tolerance.
             uvd_eor.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_eor.freq_array.max())
-        uvd_eor.data_array *= np.sqrt(np.mean(np.abs(uvd_gsm.data_array) ** 2.))\
-                              / np.sqrt(np.mean(np.abs(uvd_eor.data_array) ** 2.)) * eor_fg_ratio
         if not include_autos:
             uvd_eor.select(bls=[ap for ap in uvd_eor.get_antpairs() if ap[0] != ap[1]], inplace=True)
+        uvd_eor.data_array *= np.sqrt(np.mean(np.abs(uvd_gsm.data_array) ** 2.))\
+                              / np.sqrt(np.mean(np.abs(uvd_eor.data_array) ** 2.)) * eor_fg_ratio
         uvd_eor.write_uvh5(eor_file_name, clobber=True)
     else:
         # just read in if clobber=False and file already exists.
