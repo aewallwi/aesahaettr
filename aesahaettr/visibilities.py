@@ -234,7 +234,7 @@ def initialize_gsm(frequencies, nside_sky=defaults.nside_sky):
     return gsmcube
 
 def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.nside_sky, clobber=False, compress_by_redundancy=True,
-                         keep_config_files_on_disk=False, **array_config_kwargs):
+                         keep_config_files_on_disk=False, include_autos=False, **array_config_kwargs):
     """Compute visibilities for global sky-model with white noise EoR.
 
     Simulate visibilities at a single time for a Golomb array of antennas located at the HERA site.
@@ -279,8 +279,8 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
     # only perform simulation if clobber is true and gsm_file_name does not exist and eor_file_name does not exist:
     # generate GSM cube
     basename = get_basename(**array_config_kwargs)
-    gsm_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_gsm.uvh5')
-    eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_eor_{np.log10(eor_fg_ratio) * 10:.1f}dB.uvh5')
+    gsm_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_auts{include_autos}_gsm.uvh5')
+    eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_eor_{np.log10(eor_fg_ratio) * 10:.1f}dB.uvh5')
     if not os.path.exists(gsm_file_name) or clobber:
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
@@ -295,6 +295,8 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
         if compress_by_redundancy:
             # compress with quarter wavelength tolerance.
             uvd_gsm.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_gsm.freq_array.max())
+        if not include_autos:
+            uvd_gsm.select(bls=[ap for ap in uvd_eor.get_antpairs() if ap[0] != ap[1]], inplace=True)
         uvd_gsm.write_uvh5(gsm_file_name, clobber=True)
     else:
         uvd_gsm = UVData()
@@ -321,6 +323,8 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
             uvd_eor.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_eor.freq_array.max())
         uvd_eor.data_array *= np.sqrt(np.mean(np.abs(uvd_gsm.data_array) ** 2.))\
                               / np.sqrt(np.mean(np.abs(uvd_eor.data_array) ** 2.)) * eor_fg_ratio
+        if not include_autos:
+            uvd_eor.select(bls=[ap for ap in uvd_eor.get_antpairs() if ap[0] != ap[1]], inplace=True)
         uvd_eor.write_uvh5(eor_file_name, clobber=True)
     else:
         # just read in if clobber=False and file already exists.
