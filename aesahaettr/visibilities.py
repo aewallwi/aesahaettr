@@ -296,7 +296,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
             # compress with quarter wavelength tolerance.
             uvd_gsm.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_gsm.freq_array.max())
         if not include_autos:
-            uvd_gsm.select(bls=[ap for ap in uvd_eor.get_antpairs() if ap[0] != ap[1]], inplace=True)
+            uvd_gsm.select(bls=[ap for ap in uvd_gsm.get_antpairs() if ap[0] != ap[1]], inplace=True)
         uvd_gsm.write_uvh5(gsm_file_name, clobber=True)
     else:
         uvd_gsm = UVData()
