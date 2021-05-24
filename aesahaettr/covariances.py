@@ -414,8 +414,12 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
     evals = evals[to_keep]
     # reshape evecs to uvdata data_array
     if write_outputs:
-        basename = visibilities.get_basename(antenna_count=uvdata.Nants, nf=uvdata.Nfreqs, df=np.median(np.diff(uvdata.freq_array[0])), f0=uvdata.freq_array.min(),
+        if 'bl_cutoff_buffer' in cov_mat_simple_kwargs:
+            blc_str = f'{cov_mat_simple_kwargs['bl_cutoff_buffer']:.1f}'
+        else:
+            blc_str = 'inf'
+        basename = visibilities.get_basename(antenna_count=uvdata.Nants_telescope, nf=uvdata.Nfreqs, df=np.median(np.diff(uvdata.freq_array[0])), f0=uvdata.freq_array.min(),
                                             fractional_spacing=np.min(np.linalg.norm(uvdata.uvw_array, axis=1)) / antenna_diameter)
-        np.savez(os.path.join(output_dir, basename + f'_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz'), evecs=evecs)
+        np.savez(os.path.join(output_dir, basename + f'_blc_{blc_str}_order_by_baseline_length_{order_by_bl_length}_bl_cutoff_buffer_{}_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz'), evecs=evecs)
 
     return evals, evecs
