@@ -39,11 +39,14 @@ setup(
                       'numba',
                       'numba-scipy',
                       'scipy',
-                      'pygdsm @ git+git://github.com/telegraphic/pygdsm',                      
+                      'pygdsm @ git+git://github.com/telegraphic/pygdsm',
                       'uvtools @ git+git://github.com/HERA-Team/uvtools',
                       'pyuvsim @ git+git://github.com/RadioAstronomySoftwareGroup/pyuvsim',
-                      'hera_sim @ git+git://github.com/HERA-Team/hera_sim',
+                      'hera_sim @ git+git://github.com/HERA-Team/hera_sim'
                       ],
+    extras_require={
+        'gpu': ['hera_gpu @ git+git://github.com/HERA-Team/hera_gpu'],
+    },
     exclude = ['tests'],
     zip_safe = False,
     )

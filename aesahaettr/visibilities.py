@@ -234,7 +234,7 @@ def initialize_gsm(frequencies, nside_sky=defaults.nside_sky):
     return gsmcube
 
 def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.nside_sky, clobber=False, compress_by_redundancy=True,
-                         keep_config_files_on_disk=False, include_autos=False, **array_config_kwargs):
+                         keep_config_files_on_disk=False, include_autos=False, use_gpu=False, **array_config_kwargs):
     """Compute visibilities for global sky-model with white noise EoR.
 
     Simulate visibilities at a single time for a Golomb array of antennas located at the HERA site.
@@ -265,6 +265,8 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
     keep_config_files_on_disk: bool, optional
         Keep config files on disk. Otherwise delete.
         default is False.
+    use_gpu: bool, optional
+        if True, use gpu to compute visibilities.
     array_config_kwargs: kwarg_dict, optional
         array parameters. See initialize_uvdata for details.
 
@@ -288,7 +290,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
 
         gsmcube = initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
         gsm_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
-                                       beam_ids=beam_ids, sky_intensity=gsmcube)
+                                       beam_ids=beam_ids, sky_intensity=gsmcube, use_gpu=use_gpu)
         gsm_simulator.simulate()
         gsm_simulator.uvdata.vis_units='Jy'
         uvd_gsm = gsm_simulator.uvdata
@@ -311,7 +313,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
         eorcube = initialize_eor(uvdata.freq_array[0], nside_sky)
         # make sure pixels >= zero.
         eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0],
-                                       beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
+                                       beams=beams, beam_ids=beam_ids, use_gpu=use_gpu, sky_intensity=eorcube)
         # simulator
         eor_simulator.simulate()
         # set visibility units.
