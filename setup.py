@@ -45,7 +45,7 @@ setup(
                       'hera_sim @ git+git://github.com/HERA-Team/hera_sim'
                       ],
     extras_require={
-        'gpu': ['hera_gpu @ git+git://github.com/HERA-Team/hera_gpu'],
+        'gpu': ['hera_gpu @ git+git://github.com/HERA-Team/hera_gpu', 'hera_sim @ git+git://github.com/HERA-Team/hera_sim#egg=aesahaettr[gpu]'],
     },
     exclude = ['tests'],
     zip_safe = False,
