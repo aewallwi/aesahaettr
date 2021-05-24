@@ -329,7 +329,7 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
         return cov_mat
 
 
-def dpss_modeling_vectors(uvdata, eigenval_cutoff=1e-10, antenna_diameter=defaults.antenna_diameter):
+def dpss_modeling_vectors(uvdata, eigenval_cutoff=None, antenna_diameter=defaults.antenna_diameter):
     """Generate per-baseline dpss eigenvectors for a uvdata object.
 
     Parameters
@@ -348,13 +348,15 @@ def dpss_modeling_vectors(uvdata, eigenval_cutoff=1e-10, antenna_diameter=defaul
     """
     # generate dpss vectors
     dpss_vectors = []
+    if eigenval_cutoff is None:
+        eigenval_cutoff = [1e-10]
     for ant1, ant2, bldly in zip(uvdata.ant_1_array, uvdata.ant_2_array, (np.linalg.norm(uvdata.uvw_array, axis=1) + antenna_diameter)/ 3e8):
         blinds = uvdata.antpair2ind(ant1, ant2)
-        bl_dpss_vectors = dspec.dpss_operator(x=uvdata.freq_array[0], filter_centers=[0.], filter_half_widths=[bldly], eigenval_cutoff=eigenval_cutoff)[1]
+        bl_dpss_vectors = dspec.dpss_operator(x=uvdata.freq_array[0], filter_centers=[0.], filter_half_widths=[bldly], eigenval_cutoff=eigenval_cutoff)[0]
         # pad zeros representing data outside of the vectors particular baseline block.
-        bl_dpss_vectors = np.pad(bl_dpss_vectors, [(blinds[0], uvdata.Nblts - blinds[-1]), (0, 0)])
+        bl_dpss_vectors = np.pad(bl_dpss_vectors, [(blinds[0] * uvdata.Nfreqs, (uvdata.Nblts - blinds[-1] - 1) * uvdata.Nfreqs), (0, 0)])
         dpss_vectors.append(bl_dpss_vectors)
-    dpss_vectors = np.vstack(dpss_vectors)
+    dpss_vectors = np.hstack(dpss_vectors)
     return dpss_vectors
 
 

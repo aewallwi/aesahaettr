@@ -1,6 +1,7 @@
 from .. import covariances
 import pytest
 import numpy as np
+from .. import visibilities
 
 def test_cov_mat_simple(tmpdir):
     tmppath = tmpdir.strpath
@@ -32,6 +33,11 @@ def test_cov_mat_simple_evecs(tmpdir):
                 assert np.allclose(evals[True][:nvals], evals[False][:nvals])
                 for j in range(nvals):
                     assert np.allclose(np.abs(evecs[True][j]), np.abs(evecs[False][j]), rtol=0., atol=1e-6)
+
+def test_dpss_modeling_vectors(tmpdir):
+    uvdata, _, _ = visibilities.initialize_uvdata(nf=200, antenna_count=3, antenna_diameter=2., fractional_spacing=4., output_dir=tmpdir.strpath)
+    dpss_vectors = covariances.dpss_modeling_vectors(uvdata=uvdata)
+    assert dpss_vectors.shape[0] == uvdata.Nfreqs * uvdata.Nbls
 
 
 
