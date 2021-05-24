@@ -15,6 +15,7 @@ import scipy.special as sp
 import scipy.sparse as sparse
 from multiprocessing import Pool
 import tensorflow as tf
+from uvtools import dspec
 
 def convert_to_sparse_bands(cov_matrix):
     """convert covariance matrix to a sparse banded matrix (if possible)
@@ -327,8 +328,37 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
         return cov_mat
 
 
+def dpss_modeling_vectors(uvdata, eigenval_cutoff=1e-10, antenna_diameter=defaults.antenna_diameter):
+    """Generate per-baseline dpss eigenvectors for a uvdata object.
 
-def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, use_tensorflow=False, **cov_mat_simple_kwargs):
+    Parameters
+    ----------
+    uvdata: UVData object
+        template UVData object to base eigenvectors on.
+    eigenval_cutoff: float, optional
+        order of eigenvalue to cutoff DPSS modeling vectors at.
+    antenna_diameter: float, optional
+        aperture size. used to set intrinsic antenna chromaticity.
+    Returns
+    -------
+    dpss_vectors: array-like
+        (Nbls x Nfreqs) x Nvecs array of DPSS vectors with freq raveled inside of baseline
+        these vectors are zero outside of their baseline block.
+    """
+    # generate dpss vectors
+    dpss_vectors = []
+    for ant1, ant2, bldly in zip(uvdata.ant_1_array, uvdata.ant_2_array, (np.linalg.norm(uvdata.uvw_array, axis=1) + antenna_diameter)/ 3e8):
+        blinds = uvdata.antpair2ind(ant1, ant2)
+        bl_dpss_vectors = dspec.dpss_operator(x=uvdata.freq_array[0], filter_centers=[0.], filter_half_widths=[bldly], eigenval_cutoff=eigenval_cutoff)[1]
+        # pad zeros representing data outside of the vectors particular baseline block.
+        bl_dpss_vectors = np.pad(bl_dpss_vectors, [(blinds[0], uvdata.Nblts - blinds[-1]), (0, 0)])
+        dpss_vectors.append(bl_dpss_vectors)
+    dpss_vectors = np.vstack(dpss_vectors)
+    return dpss_vectors
+
+
+def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, use_tensorflow=False,
+                         write_outputs=False, output_dir='./', **cov_mat_simple_kwargs):
     """Generate eigenvectors of cov_mat_simple covariance to fit data.
 
     Parameters
@@ -340,6 +370,15 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
         requires cov_mat_simple_kwargs['bl_cutoff_buffer'] finite.
     eig_kwarg_dict: dictionary, optional
         dict of kwargs for scipy.sparse.linalg.eigsh or np.linalg.eigh.
+    use_tensorflow: bool, optional
+        use tensorflow and automatic GPU acceleration.
+        default is False.
+    write_outputs: bool, optional
+        if True, write out eigenvectors and eigenvalues
+        default is False.
+    output_dir: str, optional
+        location to write outputs if write_outputs=True
+        default is './'
     cov_mat_simple_kwargs: kwargs
         kwargs for cov_mat_simple except for return_bl_lens_freqs and order_by_bl_length
         See cov_mat_simple docstring.
@@ -374,4 +413,8 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
     evecs = evecs[:, to_keep]
     evals = evals[to_keep]
     # reshape evecs to uvdata data_array
+    if write_outputs:
+        basename = get_basename(**cov_mat_simple_kwargs)
+        np.savez(os.path.join(output_dir, basename + f'_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz')
+
     return evals, evecs
