@@ -8,8 +8,21 @@ https://github.com/pypa/sampleproject
 from setuptools import setup, find_packages
 import pathlib
 
+def package_files(package_dir, subdirectory):
+    # walk the input package_dir/subdirectory
+    # return a package_data list
+    paths = []
+    directory = os.path.join(package_dir, subdirectory)
+    for (path, directories, filenames) in os.walk(directory):
+        for filename in filenames:
+            path = path.replace(package_dir + '/', '')
+            paths.append(os.path.join(path, filename))
+    return paths
+
 here = pathlib.Path(__file__).parent.resolve()
 long_description = (here / 'README.md').read_text(encoding='utf-8')
+data_files = package_files('aesahaettr', 'data')
+
 setup(
     name='aesahaettr',  # Required
     version='0.0.1',  # Required
@@ -45,8 +58,10 @@ setup(
                       'hera_sim @ git+git://github.com/HERA-Team/hera_sim'
                       ],
     extras_require={
-        'gpu': ['hera_gpu @ git+git://github.com/HERA-Team/hera_gpu', 'hera_sim @ git+git://github.com/HERA-Team/hera_sim#egg=aesahaettr[gpu]'],
+        'gpu': ['hera_gpu @ git+git://github.com/HERA-Team/hera_gpu', 'hera_sim @ git+git://github.com/HERA-Team/hera_sim#egg=hera_sim[gpu]'],
     },
+    include_package_data=True,
+    package_data={'aesahaettr': data_files},
     exclude = ['tests'],
     zip_safe = False,
     )
