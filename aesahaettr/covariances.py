@@ -16,6 +16,7 @@ import scipy.sparse as sparse
 from multiprocessing import Pool
 import tensorflow as tf
 from uvtools import dspec
+import os
 
 def convert_to_sparse_bands(cov_matrix):
     """convert covariance matrix to a sparse banded matrix (if possible)
@@ -419,8 +420,12 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
             blc_str = f'{blc:.1f}'
         else:
             blc_str = 'inf'
+        if 'antenna_chromaticity' in cov_mat_simple_kwargs:
+            ad = cov_mat_simple_kwargs['antenna_chromaticity'] * 3e8
+        else:
+            ad = defaults.antenna_diameter
         basename = visibilities.get_basename(antenna_count=uvdata.Nants_telescope, nf=uvdata.Nfreqs, df=np.median(np.diff(uvdata.freq_array[0])), f0=uvdata.freq_array.min(),
-                                            fractional_spacing=np.min(np.linalg.norm(uvdata.uvw_array, axis=1)) / antenna_diameter)
-        np.savez(os.path.join(output_dir, basename + f'_blc_{blc_str}_order_by_baseline_length_{order_by_bl_length}_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz'), evecs=evecs)
+                                            fractional_spacing=np.min(np.linalg.norm(uvdata.uvw_array, axis=1)) / (ad))
+        np.savez(os.path.join(output_dir, basename + f'_blc_{blc_str}_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz'), evecs=evecs)
 
     return evals, evecs
