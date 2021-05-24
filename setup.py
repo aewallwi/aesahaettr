@@ -7,6 +7,10 @@ https://github.com/pypa/sampleproject
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
 import pathlib
+import os
+import sys
+
+sys.path.append("aesahaettr")
 
 def package_files(package_dir, subdirectory):
     # walk the input package_dir/subdirectory
