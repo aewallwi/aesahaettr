@@ -415,6 +415,6 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
     # reshape evecs to uvdata data_array
     if write_outputs:
         basename = get_basename(**cov_mat_simple_kwargs)
-        np.savez(os.path.join(output_dir, basename + f'_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz')
+        np.savez(os.path.join(output_dir, basename + f'_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz', evecs=evecs)
 
     return evals, evecs
