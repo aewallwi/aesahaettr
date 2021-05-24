@@ -21,7 +21,7 @@ def test_cov_mat_simple_evecs(tmpdir):
             for sparse in [True, False]:
                 evals[sparse], evecs[sparse] = covariances.cov_mat_simple_evecs(use_sparseness=sparse, output_dir=tmppath, antenna_count=4, nf=11,
                                                                                 bl_cutoff_buffer=blcut, fractional_spacing=1.23,
-                                                                                compress_by_redundancy=compress)
+                                                                                compress_by_redundancy=compress, output_dir=tmppath, write_outputs=True)
                 if not compress:
                     assert evecs[sparse].shape[1] == 4 * 5 / 2
                 else:
