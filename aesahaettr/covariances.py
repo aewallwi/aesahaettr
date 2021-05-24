@@ -14,6 +14,7 @@ import numba_scipy
 import scipy.special as sp
 import scipy.sparse as sparse
 from multiprocessing import Pool
+import tensorflow as tf
 
 def convert_to_sparse_bands(cov_matrix):
     """convert covariance matrix to a sparse banded matrix (if possible)
@@ -327,7 +328,7 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
 
 
 
-def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, **cov_mat_simple_kwargs):
+def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, use_tensorflow=False, **cov_mat_simple_kwargs):
     """Generate eigenvectors of cov_mat_simple covariance to fit data.
 
     Parameters
@@ -359,6 +360,11 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
     if use_sparseness and 'bl_cutoff_buffer' in cov_mat_simple_kwargs and np.isfinite(cov_mat_simple_kwargs['bl_cutoff_buffer']):
         cmat = convert_to_sparse_bands(cmat)
         evals, evecs = sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2, **eig_kwarg_dict)
+    elif use_tensorflow:
+        cmat = tf.convert_to_tensor(cmat.astype(np.float64))
+        evals, evecs = tf.linalg.eigh(cmat)
+        evals = evals.numpy()
+        evecs = evecs.numpy()
     else:
         evals, evecs = np.linalg.eigh(cmat, **eig_kwarg_dict)
     evalorder = np.argsort(evals)[::-1]
