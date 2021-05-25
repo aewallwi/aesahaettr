@@ -107,11 +107,13 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
     blvals = np.outer(uvd.uvw_array[data_inds, 0], np.ones_like(uvd.freq_array[0])).flatten()
     nuvals = np.outer(np.ones(uvd.Nbls), uvd.freq_array[0]).flatten()
     u_x, u_y = np.meshgrid(blvals * nuvals / 3e8, blvals * nuvals / 3e8)
+    du = u_x - u_y
+    del u_x, u_y
     nu_x, nu_y = np.meshgrid(nuvals, nuvals)
-    covmat = np.sinc(2 * (u_x - u_y)) * np.sinc(2 * antenna_chromaticity * (nu_x - nu_y))
+    dnu = nu_x - nu_y
+    del nu_x, nu_y
+    covmat =  np.sinc(2 * du) * np.sinc(2 * antenna_chromaticity * dnu)
     if np.isfinite(bl_cutoff_buffer):
-        del nu_x, u_x
-        del nu_y, u_y
         min_freq = uvd.freq_array.min()
         max_freq = uvd.freq_array.max()
         for i, bi in enumerate(np.abs(blvals)):
@@ -119,7 +121,9 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
                 if (min(bi, bj) + bl_cutoff_buffer) * max_freq < max(bi, bj) * min_freq:
                         covmat[i, j] = 0.
     if intra_baseline_only:
-        covmat[~np.isclose(u_x / nu_x * 3e8, u_y / nu_y * 3e8)] = 0.
+        b_x, b_y = np.meshgrid(blvals , blvals)
+        covmat[~np.isclose(b_x, b_y)] = 0.
+        del b_x, b_y
     if return_bl_lens_freqs:
         if return_uvdata:
             return blvals, nuvals, covmat, uvd
