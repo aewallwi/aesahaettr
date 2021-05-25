@@ -207,7 +207,7 @@ def initialize_eor(frequencies, nside_sky=defaults.nside_sky):
     eorcube -= eorcube.min()
     return eorcube
 
-def initialize_gsm(frequencies, nside_sky=defaults.nside_sky, save_cube=False, output_dir='./', clobber=True):
+def initialize_gsm(frequencies, nside_sky=defaults.nside_sky, save_cube=False, output_dir='./', clobber=False):
     """Initialize GSM.
 
     Parameters
