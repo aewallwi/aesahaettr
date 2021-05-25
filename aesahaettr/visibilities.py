@@ -259,16 +259,16 @@ def add_gleam(frequencies, hp_input, nsrcs=10000):
         hp_input array with gleam sources added in.
     """
     npix = hp_input.shape[1]
-    pixarea = hp.nside2pixarea(nside)
     nside = hp.npix2nside(npix)
+    pixarea = hp.nside2pixarea(nside)
     theta, phi = hp.pix2ang(nside, range(npix))
-    gleam_srcs = np.loadtxt(os.path.join(DATA_PATH, 'catalogs/gleam_bright.txt'), skip_rows=44)[:, :nsrcs]
+    gleam_srcs = np.loadtxt(os.path.join(DATA_PATH, 'catalogs/gleam_bright.txt'), skiprows=44)[:, :nsrcs]
     for srcrow in gleam_srcs:
         ra = np.radians(srcrow[0])
-        dec = np.pi / 2 - np.radians(srcrow[1])
+        zen = np.pi / 2 - np.radians(srcrow[1])
         f200 = srcrow[-1]
         alpha = srcrow[-2]
-        pixel = hp.ang2pix(nside, theta, phi)
+        pixel = hp.ang2pix(nside, zen, ra)
         hp_input[:, pixel] += f200 * (frequencies / 200e6) ** alpha / pixarea
     return hp_input
 
@@ -364,7 +364,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
         eorcube = initialize_eor(uvdata.freq_array[0], nside_sky)
         # make sure pixels >= zero.
         eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0],
-                                       beams=beams, beam_ids=beam_ids, use_gpu=use_gpu, sky_intensity=eorcube)
+                                       beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
         # simulator
         eor_simulator.simulate()
         # set visibility units.

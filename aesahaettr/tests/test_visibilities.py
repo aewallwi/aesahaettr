@@ -50,7 +50,7 @@ def test_compute_visibilities(tmpdir):
     tmppath = tmpdir.strpath
     obs_param_yaml_name, telescope_yaml_name, csv_name = visibilities.initialize_telescope_yamls(output_dir=tmppath, **array_kwargs)
     uvd_gsm, uvd_eor = visibilities.compute_visibilities(output_dir=tmppath, eor_fg_ratio=3.7e-2, nside_sky=8, keep_config_files_on_disk=False,
-                                                clobber=True, compress_by_redundancy=False, **array_kwargs)
+                                                         clobber=True, compress_by_redundancy=False, **array_kwargs)
     assert not os.path.exists(obs_param_yaml_name)
     assert not os.path.exists(telescope_yaml_name)
     assert not os.path.exists(csv_name)
@@ -59,7 +59,7 @@ def test_compute_visibilities(tmpdir):
     for uvdata in [uvd_gsm, uvd_eor]:
         assert uvdata.Nfreqs == 13
         assert uvdata.freq_array.min() == 831.7e6
-        assert uvdata.Nbls == 5 * 6 / 2
+        assert uvdata.Nbls == 5 * 6 / 2 - 5
         assert uvdata.Ntimes == 1
         bl_lens = np.linalg.norm(uvdata.uvw_array, axis=1)
         gtz = bl_lens > 0.0
