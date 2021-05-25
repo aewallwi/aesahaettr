@@ -6,12 +6,10 @@ import healpy as hp
 from pyuvsim import analyticbeam as ab
 import os
 import yaml
-from pygdsm import GlobalSkyModel
 from pyuvdata import UVData
 from hera_sim.visibilities import vis_cpu
 from pyuvsim.simsetup import initialize_uvdata_from_params, _complete_uvdata
 from . import defaults
-from aesahaettr.data import DATA_PATH
 
 golomb_dict = {1:[0], 2:[0,1], 3:[0,1,3],
                4:[0,1,4,6], 5:[0,1,4,9,11],
@@ -143,7 +141,6 @@ def initialize_telescope_yamls(output_dir='./', clobber=False, antenna_count=def
             yaml.safe_dump(obs_param_dict, obs_param_yaml)
     return obs_param_yaml_name, telescope_yaml_name, csv_name
 
-
 def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=False, compress_by_redundancy=False,
                       **array_kwargs):
     """Prepare configuration files and UVData to run simulation.
@@ -186,91 +183,6 @@ def initialize_uvdata(output_dir='./', clobber=False, keep_config_files_on_disk=
     if compress_by_redundancy:
         uvdata.compress_by_redundancy(tol = 0.25 * 3e8 / uvdata.freq_array.max(), inplace=True)
     return uvdata, beams, beam_ids
-
-def initialize_eor(frequencies, nside_sky=defaults.nside_sky):
-    """Generate EoR sky-cube.
-
-    Parameters
-    ----------
-    frequencies: array-like
-        1d array of frequencies (float)
-    nside_sky: int, optional
-        nsides of healpix sky-model
-        default is set in defaults.py
-
-    Returns
-    -------
-    eorcube: array-like
-        (npix, nfreqs) array of healpix values with arbitrary units.
-    """
-    eorcube = np.random.randn(len(frequencies), hp.nside2npix(nside_sky))
-    eorcube -= eorcube.min()
-    return eorcube
-
-def initialize_gsm(frequencies, nside_sky=defaults.nside_sky, save_cube=False, output_dir='./', clobber=False):
-    """Initialize GSM.
-
-    Parameters
-    ----------
-    frequencies: array-like
-        1d-array of frequencies (float)
-    nside_sky: int
-        nsides of healpix sky-model
-    save_cube: bool, optional
-        if True, save data to a numpy array to save time.
-    output_dir: str, optional
-
-    Returns
-    -------
-    gsmcube: array-like
-        (npix, nfreqs) array of healpix values in Jy / sr.
-    """
-    gsm_file = os.path.join(output_dir, f'gsm_cube_f0_{frequencies[0]/1e6:.1f}MHz_nf_{len(frequencies)}_df_{np.mean(np.diff(frequencies/1e3)):.1f}_kHz_nside_{nside_sky}.npz')
-    if not os.path.exists(gsm_file) or clobber:
-        gsm = GlobalSkyModel(freq_unit='Hz')
-        rot=hp.rotator.Rotator(coord=['G', 'C'])
-        gsmcube = np.zeros((len(frequencies), hp.nside2npix(nside_sky)))
-        for fnum, f in enumerate(frequencies):
-            mapslice = gsm.generate(f)
-            mapslice = hp.ud_grade(mapslice, nside_sky)
-            # convert from galactic to celestial
-            gsmcube[fnum] = rot.rotate_map_pixel(mapslice)
-        # convert gsm cube from K to Jy / Sr. multiplying by 2 k_b / lambda^2 * ([Joules / meter^2 / Jy] =1e26)
-        gsmcube = 2 * gsmcube * 1.4e-23 / 1e-26 / (3e8 / frequencies[:, None])**2
-        np.savez(gsm_file, map=gsmcube)
-    else:
-        gsmcube = np.load(gsm_file)['map']
-    return gsmcube
-
-
-def add_gleam(frequencies, hp_input, nsrcs=10000):
-    """Add GLEAM sources to a map via nearest neighbor gridding.
-
-    Parameters
-    ----------
-    frequencies: array-like
-        1d-array of frequencies (float)
-    hp_input: array-like
-        Nfreqs x Npix healpix array (units of Jy / Sr) to add gleam sources to.
-
-    Returns
-    -------
-    hp_input: array-like
-        hp_input array with gleam sources added in.
-    """
-    npix = hp_input.shape[1]
-    nside = hp.npix2nside(npix)
-    pixarea = hp.nside2pixarea(nside)
-    theta, phi = hp.pix2ang(nside, range(npix))
-    gleam_srcs = np.loadtxt(os.path.join(DATA_PATH, 'catalogs/gleam_bright.txt'), skiprows=44)[:, :nsrcs]
-    for srcrow in gleam_srcs:
-        ra = np.radians(srcrow[0])
-        zen = np.pi / 2 - np.radians(srcrow[1])
-        f200 = srcrow[-1]
-        alpha = srcrow[-2]
-        pixel = hp.ang2pix(nside, zen, ra)
-        hp_input[:, pixel] += f200 * (frequencies / 200e6) ** alpha / pixarea
-    return hp_input
 
 
 def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.nside_sky, clobber=False, compress_by_redundancy=True,
@@ -331,15 +243,16 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
     fg_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_fg_{include_gsm}_gleam_{include_gleam}_nsrc_{nsrcs_gleam}.uvh5')
     eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_eor_{np.log10(eor_fg_ratio) * 10:.1f}dB.uvh5')
     if not os.path.exists(fg_file_name) or clobber:
+        import aesahaettr.skymodel as skymodel
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                 **array_config_kwargs)
         if include_gsm:
-            fgcube = initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
+            fgcube = skymodel.initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
         else:
             fgcube = np.zeros((len(uvdata.freq_array[0], hp.nside2npix(nside_sky))))
         if include_gleam:
-            fgcube = add_gleam(uvdata.freq_array[0], fgcube, nsrcs=nsrcs_gleam)
+            fgcube = skymodel.add_gleam(uvdata.freq_array[0], fgcube, nsrcs=nsrcs_gleam)
         fg_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
                                        beam_ids=beam_ids, sky_intensity=fgcube)
         fg_simulator.simulate()
@@ -356,12 +269,13 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
         uvd_fg.read(fg_file_name)
     # only do eor cube if file does not exist.
     if not os.path.exists(eor_file_name) or clobber:
+        import aesahaettr.skymodel as skymodel
         # initialize simulator
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                **array_config_kwargs)
         # define eor cube with random noise.
-        eorcube = initialize_eor(uvdata.freq_array[0], nside_sky)
+        eorcube = skymodel.initialize_eor(uvdata.freq_array[0], nside_sky)
         # make sure pixels >= zero.
         eor_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0],
                                        beams=beams, beam_ids=beam_ids, sky_intensity=eorcube)
