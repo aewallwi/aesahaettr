@@ -2,7 +2,6 @@ import numpy as np
 import copy
 from uvtools import dspec
 from . import defaults
-from . import visibilities
 
 def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window='bh', min_bl=0.1):
     """
