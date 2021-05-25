@@ -274,7 +274,7 @@ def add_gleam(frequencies, hp_input, nsrcs=10000):
 
 
 def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.nside_sky, clobber=False, compress_by_redundancy=True,
-                         keep_config_files_on_disk=False, include_autos=False, use_gpu=False, **array_config_kwargs):
+                         keep_config_files_on_disk=False, include_autos=False, include_gsm=True, include_gleam=True, nsrcs_gleam=10000, **array_config_kwargs):
     """Compute visibilities for global sky-model with white noise EoR.
 
     Simulate visibilities at a single time for a Golomb array of antennas located at the HERA site.
@@ -305,44 +305,55 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
     keep_config_files_on_disk: bool, optional
         Keep config files on disk. Otherwise delete.
         default is False.
-    use_gpu: bool, optional
-        if True, use gpu to compute visibilities.
+    include_gsm: bool, optional.
+        include desourced gsm in sky model.
+        default is True.
+    include_gleam: bool, optional.
+        include gleam point sources in sky model.
+        default is True.
+    nsrcs_gleam: int, optional
+        number of brightest gleam sources to include in sky model
+        default is 10000
     array_config_kwargs: kwarg_dict, optional
         array parameters. See initialize_uvdata for details.
 
     Returns
     -------
-    uvd_gsm: UVData object
-        UVData with visibilites of GSM emission.
+    uvd_fg: UVData object
+        UVData with visibilites of foreground emission.
     uvd_eor: UVData object
         UVData with visibilities of EoR emission.
 
     """
-    # only perform simulation if clobber is true and gsm_file_name does not exist and eor_file_name does not exist:
+    # only perform simulation if clobber is true and fg_file_name does not exist and eor_file_name does not exist:
     # generate GSM cube
     basename = get_basename(**array_config_kwargs)
-    gsm_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_gsm.uvh5')
+    fg_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_fg_{include_gsm}_gleam_{include_gleam}.uvh5')
     eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_eor_{np.log10(eor_fg_ratio) * 10:.1f}dB.uvh5')
-    if not os.path.exists(gsm_file_name) or clobber:
+    if not os.path.exists(fg_file_name) or clobber:
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                 **array_config_kwargs)
-
-        gsmcube = initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
-        gsm_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
-                                       beam_ids=beam_ids, sky_intensity=gsmcube, use_gpu=use_gpu)
-        gsm_simulator.simulate()
-        gsm_simulator.uvdata.vis_units='Jy'
-        uvd_gsm = gsm_simulator.uvdata
+        if include_gsm:
+            fgcube = initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
+        else:
+            fgcube = np.zeros((len(uvdata.freq_array[0], hp.nside2npix(nside_sky))))
+        if include_gleam:
+            fgcube = add_gleam(uvdata.freq_array[0], fgcube, nsrcs=nsrcs_gleam)
+        fg_simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
+                                       beam_ids=beam_ids, sky_intensity=fgcube)
+        fg_simulator.simulate()
+        fg_simulator.uvdata.vis_units='Jy'
+        uvd_fg = fg_simulator.uvdata
         if compress_by_redundancy:
             # compress with quarter wavelength tolerance.
-            uvd_gsm.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_gsm.freq_array.max())
+            uvd_fg.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_fg.freq_array.max())
         if not include_autos:
-            uvd_gsm.select(bls=[ap for ap in uvd_gsm.get_antpairs() if ap[0] != ap[1]], inplace=True)
-        uvd_gsm.write_uvh5(gsm_file_name, clobber=True)
+            uvd_fg.select(bls=[ap for ap in uvd_fg.get_antpairs() if ap[0] != ap[1]], inplace=True)
+        uvd_fg.write_uvh5(fg_file_name, clobber=True)
     else:
-        uvd_gsm = UVData()
-        uvd_gsm.read(gsm_file_name)
+        uvd_fg = UVData()
+        uvd_fg.read(fg_file_name)
     # only do eor cube if file does not exist.
     if not os.path.exists(eor_file_name) or clobber:
         # initialize simulator
@@ -365,7 +376,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
             uvd_eor.compress_by_redundancy(tol = 0.25 * 3e8 / uvd_eor.freq_array.max())
         if not include_autos:
             uvd_eor.select(bls=[ap for ap in uvd_eor.get_antpairs() if ap[0] != ap[1]], inplace=True)
-        uvd_eor.data_array *= np.sqrt(np.mean(np.abs(uvd_gsm.data_array) ** 2.))\
+        uvd_eor.data_array *= np.sqrt(np.mean(np.abs(uvd_fg.data_array) ** 2.))\
                               / np.sqrt(np.mean(np.abs(uvd_eor.data_array) ** 2.)) * eor_fg_ratio
         uvd_eor.write_uvh5(eor_file_name, clobber=True)
     else:
@@ -373,7 +384,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
         uvd_eor = UVData()
         uvd_eor.read(eor_file_name)
 
-    return uvd_gsm, uvd_eor
+    return uvd_fg, uvd_eor
 
 def grid_nearest_neighbor(uvdata=None, **array_kwargs):
     """Perform nearest neighbor gridding of visibilities to a u-nu plane.
