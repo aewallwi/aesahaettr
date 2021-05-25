@@ -243,7 +243,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
     fg_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_fg_{include_gsm}_gleam_{include_gleam}_nsrc_{nsrcs_gleam}.uvh5')
     eor_file_name = os.path.join(output_dir, basename + f'compressed_{compress_by_redundancy}_autos{include_autos}_eor_{np.log10(eor_fg_ratio) * 10:.1f}dB.uvh5')
     if not os.path.exists(fg_file_name) or clobber:
-        import aesahaettr.skymodel as skymodel
+        from . import skymodel
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                 **array_config_kwargs)
@@ -269,7 +269,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
         uvd_fg.read(fg_file_name)
     # only do eor cube if file does not exist.
     if not os.path.exists(eor_file_name) or clobber:
-        import aesahaettr.skymodel as skymodel
+        from . import skymodel
         # initialize simulator
         uvdata, beams, beam_ids = initialize_uvdata(output_dir=output_dir, clobber=clobber,
                                                                keep_config_files_on_disk=keep_config_files_on_disk,

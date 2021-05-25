@@ -1,7 +1,8 @@
 import numpy as np
 import healpy as hp
-from aesahaettr.data import DATA_PATH
-
+from .data import DATA_PATH
+from . import defaults
+import os
 
 
 def initialize_eor(frequencies, nside_sky=defaults.nside_sky):
