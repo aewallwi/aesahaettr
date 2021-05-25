@@ -244,7 +244,7 @@ def initialize_gsm(frequencies, nside_sky=defaults.nside_sky, save_cube=False, o
 
 
 def add_gleam(frequencies, hp_input, nsrcs=10000):
-    """Initialize GLEAM sources placed on a a HEALPIX grid.
+    """Add GLEAM sources to a map via nearest neighbor gridding.
 
     Parameters
     ----------
@@ -257,7 +257,7 @@ def add_gleam(frequencies, hp_input, nsrcs=10000):
     -------
     hp_input: array-like
         hp_input array with gleam sources added in.
-    """"
+    """
     npix = hp_input.shape[1]
     pixarea = hp.nside2pixarea(nside)
     nside = hp.npix2nside(npix)
