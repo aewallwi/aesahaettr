@@ -248,7 +248,7 @@ def compute_visibilities(eor_fg_ratio=1e-5, output_dir='./', nside_sky=defaults.
                                                                keep_config_files_on_disk=keep_config_files_on_disk,
                                                                 **array_config_kwargs)
         if include_gsm:
-            fgcube = skymodel.initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
+            fgcube = skymodel.initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky, output_dir=output_dir)
         else:
             fgcube = np.zeros((len(uvdata.freq_array[0], hp.nside2npix(nside_sky))))
         if include_gleam:
