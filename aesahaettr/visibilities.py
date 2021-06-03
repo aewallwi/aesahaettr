@@ -3,7 +3,6 @@ import itertools
 import scipy.special as sp
 import copy
 import healpy as hp
-from pyuvsim import analyticbeam as ab
 import os
 import yaml
 from pyuvdata import UVData
