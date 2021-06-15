@@ -1,5 +1,3 @@
-
-
 antenna_diameter = 2.0
 fractional_spacing = 1.0
 antenna_count = 10

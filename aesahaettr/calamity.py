@@ -3,12 +3,29 @@ from uvtools import dspec
 import tensorflow as tf
 from pyuvdata import UVData, UVCal
 
-OPTIMIZERS = {'Adadelta': tf.optimizers.Adadelta, 'Adam': tf.optimizers.Adam, 'Adamax':tf.optimizers.Adamax,
-              'Ftrl': tf.optimizers.Ftrl, 'Nadam':tf.optimizers.Nadam, 'SGD':tf.optimizers.SGD, 'RMSprop': tf.optimizers.RMSprop}
+OPTIMIZERS = {
+    "Adadelta": tf.optimizers.Adadelta,
+    "Adam": tf.optimizers.Adam,
+    "Adamax": tf.optimizers.Adamax,
+    "Ftrl": tf.optimizers.Ftrl,
+    "Nadam": tf.optimizers.Nadam,
+    "SGD": tf.optimizers.SGD,
+    "RMSprop": tf.optimizers.RMSprop,
+}
 
 
-def calibrate_data(uvdata, foreground_basis_vectors, fg0=None, g0=None, weights=None,
-                   foreground_coefficients=None, optimizer='Adamax', tol=1e-14, maxsteps=10000, **opt_kwargs):
+def calibrate_data(
+    uvdata,
+    foreground_basis_vectors,
+    fg0=None,
+    g0=None,
+    weights=None,
+    foreground_coefficients=None,
+    optimizer="Adamax",
+    tol=1e-14,
+    maxsteps=10000,
+    **opt_kwargs
+):
     """A foreground loss function
 
     Parameters

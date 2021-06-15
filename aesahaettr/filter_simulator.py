@@ -1,4 +1,3 @@
-
 import numpy as np
 from . import visibilities
 from . import icov_filter
@@ -7,10 +6,18 @@ import argparse
 import copy
 from . import defaults
 
-def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
-                        compress_by_redundancy=False,
-                        bl_cutoff_buffer=np.inf, intrinsic_chromaticity_multiplier=1.0,
-                        use_dayenu=False, use_sparseness=False, **sim_kwargs):
+
+def simulate_and_filter(
+    tol=1e-11,
+    output_dir="./",
+    clobber=False,
+    compress_by_redundancy=False,
+    bl_cutoff_buffer=np.inf,
+    intrinsic_chromaticity_multiplier=1.0,
+    use_dayenu=False,
+    use_sparseness=False,
+    **sim_kwargs,
+):
     """Simulate array configuration and apply filtering.
 
     Parameters
@@ -42,16 +49,22 @@ def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
     sim_kwargs: additional optional params for simulation.
         parameters of the sky simulation. See compute_visibilities docstring.
     """
-    if 'antenna_diameter' in sim_kwargs:
-        antenna_diameter = sim_kwargs['antenna_diameter']
+    if "antenna_diameter" in sim_kwargs:
+        antenna_diameter = sim_kwargs["antenna_diameter"]
     else:
         antenna_diameter = defaults.antenna_diameter
     basename = visibilities.get_basename(**sim_kwargs)
-    filtered_pbl_file = os.path.join(output_dir, basename + f'_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_pbl.uvh5')
-    filtered_ibl_file = os.path.join(output_dir, basename + f'_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_ibl.uvh5')
+    filtered_pbl_file = os.path.join(
+        output_dir,
+        basename + f"_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_pbl.uvh5",
+    )
+    filtered_ibl_file = os.path.join(
+        output_dir,
+        basename + f"_bmult{intrinsic_chromaticity_multiplier:.2f}_tol{tol:.1e}_ibl.uvh5",
+    )
     if (not os.path.exists(filtered_pbl_file) or not os.path.exists(filtered_ibl_file)) or not skip_existing:
-        uvd_eor_name = os.path.join(output_dir, basename + '_eor.uvh5')
-        uvd_gsm_name = os.path.join(output_dir, basename + '_gsm.uvh5')
+        uvd_eor_name = os.path.join(output_dir, basename + "_eor.uvh5")
+        uvd_gsm_name = os.path.join(output_dir, basename + "_gsm.uvh5")
         if os.path.exists(uvd_eor_name) and os.path.exists(uvd_gsm_name) and not clobber:
             uvd_eor = UVData()
             uvd_eor.read_uvh5(uvd_eor_name)
@@ -61,32 +74,84 @@ def simulate_and_filter(tol=1e-11, output_dir='./', clobber=False,
             uvd_eor, uvd_gsm = visibilities.compute_visibilities(output_dir=output_dir, clobber=clobber, **sim_kwargs)
         uvd_total = copy.deepcopy(uvd_eor)
         uvd_total.data_array = uvd_eor.data_array + uvd_gsm.data_array
-        uvd_filtered = icov_filter.filter_data(uvd_total, antenna_chromaticity=antenna_diameter / 3e8 * intrinsic_chromaticity_multiplier,
-                                          tol=tol, use_dayenu=use_dayenu, bl_cutoff_buffer=bl_cutoff_buffer, use_sparseness=use_sparseness)
-    return uvd_total, uvd_filtered,
+        uvd_filtered = icov_filter.filter_data(
+            uvd_total,
+            antenna_chromaticity=antenna_diameter / 3e8 * intrinsic_chromaticity_multiplier,
+            tol=tol,
+            use_dayenu=use_dayenu,
+            bl_cutoff_buffer=bl_cutoff_buffer,
+            use_sparseness=use_sparseness,
+        )
+    return (
+        uvd_total,
+        uvd_filtered,
+    )
 
 
 def get_simulation_parser():
     ap = argparse.ArgumentParser(description="Perform a 1-dimensional filtering simulation.")
     simgroup = ap.add_argument_group("Simulation parameters.")
-    simgroup.add_argument("--antenna_count", type=int, help="Number of antennas in array simulation.", default=defaults.antenna_count)
-    simgroup.add_argument("--max_bl_length", type=int, help="Maximum baseline length. Can be used to automatically determine the antenna count.", default=None)
-    simgroup.add_argument("--antenna_diameter", type=float, default=4.0, help="Diameter of a single antenna element (uses Airy beam).")
-    simgroup.add_argument("--fractional_spacing", type=float, help="Distance between elements as a fraction of dish diameter.", default=1.0)
+    simgroup.add_argument(
+        "--antenna_count",
+        type=int,
+        help="Number of antennas in array simulation.",
+        default=defaults.antenna_count,
+    )
+    simgroup.add_argument(
+        "--max_bl_length",
+        type=int,
+        help="Maximum baseline length. Can be used to automatically determine the antenna count.",
+        default=None,
+    )
+    simgroup.add_argument(
+        "--antenna_diameter",
+        type=float,
+        default=4.0,
+        help="Diameter of a single antenna element (uses Airy beam).",
+    )
+    simgroup.add_argument(
+        "--fractional_spacing",
+        type=float,
+        help="Distance between elements as a fraction of dish diameter.",
+        default=1.0,
+    )
     simgroup.add_argument("--Nfreqs", type=int, help="Number of frequency channels.", default=defaults.nf)
-    simgroup.add_argument("--freq_channel_width", type=float, help="Frequency Channel width [Hz].", default=defaults.df)
-    simgroup.add_argument("--minimum_frequency", type=float, help="Minimum frequency [Hz].", default=defaults.f0)
+    simgroup.add_argument(
+        "--freq_channel_width",
+        type=float,
+        help="Frequency Channel width [Hz].",
+        default=defaults.df,
+    )
+    simgroup.add_argument(
+        "--minimum_frequency",
+        type=float,
+        help="Minimum frequency [Hz].",
+        default=defaults.f0,
+    )
     filtergroup = ap.add_argument_group("Filtering Parameters")
     filtergroup.add_argument("--tol", type=float, default=1e-11, help="Factor to suppress foregrounds by.")
-    filtergroup.add_argument("--buffer_multiplier", type=float, default=1.0, help="Factor to multiply frequency buffer by.")
-    filtergroup.add_argument("--per_baseline", default=False, action="store_true", help="Perform per-baseline filter rather then inter-baseline filter.")
-    filtergroup.add_argument("--bl_cutoff", default=np.inf, help="Set approximate covariance to be zero between baselines with separation greater then this value.")
-
+    filtergroup.add_argument(
+        "--buffer_multiplier",
+        type=float,
+        default=1.0,
+        help="Factor to multiply frequency buffer by.",
+    )
+    filtergroup.add_argument(
+        "--per_baseline",
+        default=False,
+        action="store_true",
+        help="Perform per-baseline filter rather then inter-baseline filter.",
+    )
+    filtergroup.add_argument(
+        "--bl_cutoff",
+        default=np.inf,
+        help="Set approximate covariance to be zero between baselines with separation greater then this value.",
+    )
 
 
 def generate_grid_params(r_spaces=None, antenna_diameters=None, nfs=None, antenna_counts=None, dfs=None):
 
-    r_spaces = [1, 1.5, 2.]
+    r_spaces = [1, 1.5, 2.0]
     antenna_diameters = [2.0, 4.0, 8.0, 14.0]
     nfs = [100, 200, 400]
     antenna_counts = [10, 15]
@@ -98,5 +163,12 @@ def generate_grid_params(r_spaces=None, antenna_diameters=None, nfs=None, antenn
             for nf in nfs:
                 for df in dfs:
                     for antenna_count in antenna_counts:
-                        param_combinations.append({'fractional_spacing':fractional_spacing, 'antenna_diameter':antenna_diameter,
-                                                   'nf':nf, 'df':df, 'antenna_count':antenna_count})
+                        param_combinations.append(
+                            {
+                                "fractional_spacing": fractional_spacing,
+                                "antenna_diameter": antenna_diameter,
+                                "nf": nf,
+                                "df": df,
+                                "antenna_count": antenna_count,
+                            }
+                        )

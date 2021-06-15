@@ -1,9 +1,10 @@
 import copy
 from uvtools import dspec
 import numpy as np
-from .  import covariances
+from . import covariances
 from scipy import sparse
 from scipy import linalg
+
 
 def inv_banded(banded_matrix):
     """Invert a sparse banded matrix.
@@ -23,10 +24,19 @@ def inv_banded(banded_matrix):
     nbands = np.min([np.count_nonzero(row) for row in banded_matrix])
     ab = np.zeros((nbands, nrows))
     for i in np.arange(1, nbands):
-        ab[i, :] = np.concatenate((np.diag(banded_matrix, k=i), np.zeros(i,)), axis=None)
+        ab[i, :] = np.concatenate(
+            (
+                np.diag(banded_matrix, k=i),
+                np.zeros(
+                    i,
+                ),
+            ),
+            axis=None,
+        )
     ab[0, :] = np.diag(banded_matrix, k=0)
     inv_matrix = linalg.solveh_banded(ab, np.eye(nrows), lower=True)
     return inv_matrix
+
 
 def filter_mat_simple(tol=1e-9, use_sparseness=False, **cov_kwargs):
     """
@@ -53,13 +63,14 @@ def filter_mat_simple(tol=1e-9, use_sparseness=False, **cov_kwargs):
     """
     cmat_simple = covariances.cov_mat_simple(**cov_kwargs)
     cmat_simple = cmat_simple / tol + np.identity(cmat_simple.shape[0])
-    if 'bl_cutoff_buffer' in cov_kwargs and np.isfinite(cov_kwargs['bl_cutoff_buffer']) and use_sparseness:
+    if "bl_cutoff_buffer" in cov_kwargs and np.isfinite(cov_kwargs["bl_cutoff_buffer"]) and use_sparseness:
         cmat_simple = covariances.convert_to_sparse_bands(cmat_simple)
         # compute sparse inversion and return array.
         filter_matrix = inv_banded(cmat_simple)
     else:
         filter_matrix = linalg.pinvh(cmat_simple)
     return filter_matrix
+
 
 def filter_data(uvd, use_dayenu=False, **filter_kwargs):
     """
@@ -88,10 +99,9 @@ def filter_data(uvd, use_dayenu=False, **filter_kwargs):
             data_inds = np.where(uvd.time_array == time)[0]
             for pind in range(uvd.data_array.shape[-1]):
                 data = uvd.data_array[data_inds, 0, :, pind].squeeze()
-                uvd.data_array[data_inds, 0, :, pind] = \
-                (filter_matrix @\
-                 (data.reshape(len(data_inds)\
-                  * uvd.Nfreqs))).reshape(len(data_inds), uvd.Nfreqs)
+                uvd.data_array[data_inds, 0, :, pind] = (
+                    filter_matrix @ (data.reshape(len(data_inds) * uvd.Nfreqs))
+                ).reshape(len(data_inds), uvd.Nfreqs)
     else:
         cache = {}
         for time in np.unique(uvd.time_array):
@@ -99,14 +109,17 @@ def filter_data(uvd, use_dayenu=False, **filter_kwargs):
             for pind in range(uvd.data_array.shape[-1]):
                 for rownum in range(uvd.data_array[data_inds, 0, :, pind].squeeze().shape[0]):
                     drow = uvd.data_array[data_inds, 0, :, pind][rownum].squeeze()
-                    fw = filter_kwargs['antenna_chromaticity'] + linalg.norm(uvd.uvw_array[data_inds[rownum]]) / 3e8
-                    filtered\
-                    = dspec.dayenu_filter(x=uvd.freq_array[0], data=drow,
-                                          wgts=np.ones(uvd.Nfreqs),
-                                          cache=cache, filter_centers=[0.0],
-                                          filter_half_widths=[fw],
-                                          filter_dimensions=[0],
-                                          filter_factors=[tol])[0]
+                    fw = filter_kwargs["antenna_chromaticity"] + linalg.norm(uvd.uvw_array[data_inds[rownum]]) / 3e8
+                    filtered = dspec.dayenu_filter(
+                        x=uvd.freq_array[0],
+                        data=drow,
+                        wgts=np.ones(uvd.Nfreqs),
+                        cache=cache,
+                        filter_centers=[0.0],
+                        filter_half_widths=[fw],
+                        filter_dimensions=[0],
+                        filter_factors=[tol],
+                    )[0]
                     uvd.data_array[data_inds[rownum], 0, :, pind] = filtered
 
     return uvd

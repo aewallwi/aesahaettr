@@ -5,6 +5,7 @@ from . import visibilities
 from . import defaults
 import tqdm
 import healpy as hp
+
 # import airy beam model.
 from hera_sim.visibilities import vis_cpu
 import numba
@@ -17,6 +18,7 @@ from multiprocessing import Pool
 import tensorflow as tf
 from uvtools import dspec
 import os
+
 
 def convert_to_sparse_bands(cov_matrix):
     """convert covariance matrix to a sparse banded matrix (if possible)
@@ -34,20 +36,28 @@ def convert_to_sparse_bands(cov_matrix):
     offsets = []
     for k in range(cov_matrix.shape[0]):
         band = [cov_matrix[i, i + k] for i in range(cov_matrix.shape[0] - k)]
-        if np.any(np.abs(np.asarray(band)) > 0.):
+        if np.any(np.abs(np.asarray(band)) > 0.0):
             diagonals.append(band)
             offsets.append(k)
     for k in range(1, cov_matrix.shape[1]):
         band = [cov_matrix[i + k, i] for i in range(cov_matrix.shape[1] - k)]
-        if np.any(np.abs(np.asarray(band)) > 0.):
+        if np.any(np.abs(np.asarray(band)) > 0.0):
             diagonals.append(band)
             offsets.append(-k)
     dia_matrix = sparse.diags(diagonals, offsets)
     return dia_matrix
 
 
-def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, order_by_bl_length=False,
-                   return_bl_lens_freqs=False, return_uvdata=False, intra_baseline_only=False, **array_config_kwargs):
+def cov_mat_simple(
+    uvd=None,
+    antenna_chromaticity=0.0,
+    bl_cutoff_buffer=np.inf,
+    order_by_bl_length=False,
+    return_bl_lens_freqs=False,
+    return_uvdata=False,
+    intra_baseline_only=False,
+    **array_config_kwargs,
+):
     """
     A covariance matrix that is both simple and flexible enough to describe
     the covariances within the wedge and simple antennas.
@@ -112,17 +122,17 @@ def cov_mat_simple(uvd=None, antenna_chromaticity=0.0, bl_cutoff_buffer=np.inf, 
     nu_x, nu_y = np.meshgrid(nuvals, nuvals)
     dnu = nu_x - nu_y
     del nu_x, nu_y
-    covmat =  np.sinc(2 * du) * np.sinc(2 * antenna_chromaticity * dnu)
+    covmat = np.sinc(2 * du) * np.sinc(2 * antenna_chromaticity * dnu)
     if np.isfinite(bl_cutoff_buffer):
         min_freq = uvd.freq_array.min()
         max_freq = uvd.freq_array.max()
         for i, bi in enumerate(np.abs(blvals)):
             for j, bj in enumerate(np.abs(blvals)):
                 if (min(bi, bj) + bl_cutoff_buffer) * max_freq < max(bi, bj) * min_freq:
-                        covmat[i, j] = 0.
+                    covmat[i, j] = 0.0
     if intra_baseline_only:
-        b_x, b_y = np.meshgrid(blvals , blvals)
-        covmat[~np.isclose(b_x, b_y)] = 0.
+        b_x, b_y = np.meshgrid(blvals, blvals)
+        covmat[~np.isclose(b_x, b_y)] = 0.0
         del b_x, b_y
     if return_bl_lens_freqs:
         if return_uvdata:
@@ -164,22 +174,30 @@ def airy_cov_integrand(theta, nu1, nu2, baseline1, baseline2, antenna_diameter=d
     x1 = np.sin(theta) * 2 / antenna_diameter * 3e8 / nu1
     x2 = np.sin(theta) * 2 / antenna_diameter * 3e8 / nu2
     if x1 > 0:
-        airy1 = (2 * sp.j1(x1) / x1) ** 2.
+        airy1 = (2 * sp.j1(x1) / x1) ** 2.0
     else:
-        airy1 = 1.
+        airy1 = 1.0
     if x2 > 0:
-        airy2 = (2 * sp.j1(x2) / x2) ** 2.
+        airy2 = (2 * sp.j1(x2) / x2) ** 2.0
     else:
-        airy2 = 1.
+        airy2 = 1.0
     du = np.abs(baseline1 * nu1 / 3e8 - baseline2 * nu2 / 3e8)
     integrand = airy1 * airy2 * sp.j0(du * np.sin(theta)) * np.sin(theta)
     return integrand
 
 
-def cov_matrix_airy(uvdata=None, output_dir='./', mode='foregrounds', correlated_freqs=True,
-                    clobber=True, order_by_bl_length=False, bl_cutoff_buffer=np.inf, return_uvdata=False,
-                    parallelize=False,
-                    **array_config_kwargs):
+def cov_matrix_airy(
+    uvdata=None,
+    output_dir="./",
+    mode="foregrounds",
+    correlated_freqs=True,
+    clobber=True,
+    order_by_bl_length=False,
+    bl_cutoff_buffer=np.inf,
+    return_uvdata=False,
+    parallelize=False,
+    **array_config_kwargs,
+):
     """Covariance for flat-spectrum unclustered sources viewed by an array with an airy beam.
 
     Parameters
@@ -205,8 +223,8 @@ def cov_matrix_airy(uvdata=None, output_dir='./', mode='foregrounds', correlated
         uvdata: UVData
             UVData object with all of the metadata / data shape.
     """
-    if 'antenna_diameter' not in array_config_kwargs:
-        array_config_kwargs['antenna_diameter'] = defaults.antenna_diameter
+    if "antenna_diameter" not in array_config_kwargs:
+        array_config_kwargs["antenna_diameter"] = defaults.antenna_diameter
     if uvdata is None:
         uvdata, _, _ = visibilities.initialize_uvdata(**array_config_kwargs)
 
@@ -224,15 +242,43 @@ def cov_matrix_airy(uvdata=None, output_dir='./', mode='foregrounds', correlated
         for i, j in itertools.combinations(range(nx), 2):
             if correlated_freqs or nuvals[i] == nuvals[j]:
                 if (min(blvals[i], blvals[j]) + bl_cutoff_buffer) * max_freq < max(blvals[i], blvals[j]) * min_freq:
-                    covmat[i, j] = 0.
-                    covmat[j, i] = 0.
+                    covmat[i, j] = 0.0
+                    covmat[j, i] = 0.0
                 else:
-                    covmat[i, j] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
-                                                              args=(nuvals[i], nuvals[j], blvals[i], blvals[j], array_config_kwargs['antenna_diameter']))[0]
+                    covmat[i, j] = (
+                        2
+                        * np.pi
+                        * integrate.quad(
+                            airy_cov_integrand,
+                            0,
+                            np.pi / 2.0,
+                            args=(
+                                nuvals[i],
+                                nuvals[j],
+                                blvals[i],
+                                blvals[j],
+                                array_config_kwargs["antenna_diameter"],
+                            ),
+                        )[0]
+                    )
                     covmat[j, i] = covmat[i, j]
         for i in range(nx):
-            covmat[i, i] = 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
-                                                      args=(nuvals[i], nuvals[i], blvals[i], blvals[i], array_config_kwargs['antenna_diameter']))[0]
+            covmat[i, i] = (
+                2
+                * np.pi
+                * integrate.quad(
+                    airy_cov_integrand,
+                    0,
+                    np.pi / 2.0,
+                    args=(
+                        nuvals[i],
+                        nuvals[i],
+                        blvals[i],
+                        blvals[i],
+                        array_config_kwargs["antenna_diameter"],
+                    ),
+                )[0]
+            )
     else:
         raise NotImplementedError("parallelized integral calculation not yet implemented but needs to be!")
         pool = Pool()
@@ -242,19 +288,37 @@ def cov_matrix_airy(uvdata=None, output_dir='./', mode='foregrounds', correlated
     else:
         return covmat
 
+
 def process_matrix_element(bl1, bl2, nu1, nu2, min_freq, max_freq, antenna_diameter, correlated_freqs=True):
     if correlated_freqs or nu1 == nu2:
         if (min(bl1, bl2) + bl_cutoff_buffer) * max_freq < max(bl1, bl2) * min_freq:
             return 0.0
         else:
-            return 2 * np.pi * integrate.quad(airy_cov_integrand, 0, np.pi / 2.,
-                                              args=(nu1, nu2, bl1, bl2, antenna_diameter))[0]
+            return (
+                2
+                * np.pi
+                * integrate.quad(
+                    airy_cov_integrand,
+                    0,
+                    np.pi / 2.0,
+                    args=(nu1, nu2, bl1, bl2, antenna_diameter),
+                )[0]
+            )
     else:
         return 0.0
 
-def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./', mode='gsm',
-                     nside_sky=defaults.nside_sky, clobber=True, order_by_bl_length=False,
-                     return_uvdata=False, **array_config_kwargs):
+
+def cov_mat_simulated(
+    ndraws=1000,
+    compress_by_redundancy=False,
+    output_dir="./",
+    mode="gsm",
+    nside_sky=defaults.nside_sky,
+    clobber=True,
+    order_by_bl_length=False,
+    return_uvdata=False,
+    **array_config_kwargs,
+):
     """Estimate a bootstrapped gsm covariance matrix using random rotations of GlobalSkyModel.
 
     Parameters
@@ -284,12 +348,13 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
     if return_uvdata:
         UVData object with all of the metadata / data shape.
     """
-    uvdata, beams, beam_ids = visibilities.initialize_uvdata(output_dir=output_dir, clobber=clobber,
-                                                **array_config_kwargs)
-    if mode == 'gsm':
+    uvdata, beams, beam_ids = visibilities.initialize_uvdata(
+        output_dir=output_dir, clobber=clobber, **array_config_kwargs
+    )
+    if mode == "gsm":
         signalcube = visibilities.initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
     if compress_by_redundancy:
-        uvdata_compressed = uvdata.compress_by_redundancy(tol = 0.25 * 3e8 / uvdata.freq_array.max(), inplace=False)
+        uvdata_compressed = uvdata.compress_by_redundancy(tol=0.25 * 3e8 / uvdata.freq_array.max(), inplace=False)
         nblfrqs = uvdata_compressed.Nbls * uvdata_compressed.Nfreqs
         data_inds = np.where(uvdata_compressed.time_array == uvdata.time_array[0])[0]
         if order_by_bl_length:
@@ -305,18 +370,30 @@ def cov_mat_simulated(ndraws=1000, compress_by_redundancy=False, output_dir='./'
 
     for draw in tqdm.tqdm(range(ndraws)):
         # generate random rotation
-        if mode == 'gsm':
-            rot = hp.Rotator(rot=(np.random.rand() * 360, (np.random.rand() * 180 - 90),
-                                  np.random.rand() * 360))
+        if mode == "gsm":
+            rot = hp.Rotator(
+                rot=(
+                    np.random.rand() * 360,
+                    (np.random.rand() * 180 - 90),
+                    np.random.rand() * 360,
+                )
+            )
             signalcube = np.asarray(rot.rotate_map_pixel(signalcube))
         else:
             signalcube = visibilities.initialize_eor(uvdata.freq_array[0], nside_sky=nside_sky)
         uvdata.data_array[:] = 0.0
-        simulator = vis_cpu.VisCPU(uvdata=uvdata, sky_freqs=uvdata.freq_array[0], beams=beams,
-                                       beam_ids=beam_ids, sky_intensity=signalcube)
+        simulator = vis_cpu.VisCPU(
+            uvdata=uvdata,
+            sky_freqs=uvdata.freq_array[0],
+            beams=beams,
+            beam_ids=beam_ids,
+            sky_intensity=signalcube,
+        )
         simulator.simulate()
         if compress_by_redundancy:
-            uvdata_compressed = simulator.uvdata.compress_by_redundancy(tol = 0.25 * 3e8 / uvdata.freq_array.max(), inplace=False)
+            uvdata_compressed = simulator.uvdata.compress_by_redundancy(
+                tol=0.25 * 3e8 / uvdata.freq_array.max(), inplace=False
+            )
             data_vec = uvdata_compressed.data_array[data_inds, 0, :, 0].flatten()
         else:
             data_vec = simulator.uvdata.data_array[data_inds, 0, :, 0].flatten()
@@ -354,18 +431,44 @@ def dpss_modeling_vectors(uvdata, eigenval_cutoff=None, antenna_diameter=default
     dpss_vectors = []
     if eigenval_cutoff is None:
         eigenval_cutoff = [1e-10]
-    for ant1, ant2, bldly in zip(uvdata.ant_1_array, uvdata.ant_2_array, (np.linalg.norm(uvdata.uvw_array, axis=1) + antenna_diameter)/ 3e8):
+    for ant1, ant2, bldly in zip(
+        uvdata.ant_1_array,
+        uvdata.ant_2_array,
+        (np.linalg.norm(uvdata.uvw_array, axis=1) + antenna_diameter) / 3e8,
+    ):
         blinds = uvdata.antpair2ind(ant1, ant2)
-        bl_dpss_vectors = dspec.dpss_operator(x=uvdata.freq_array[0], filter_centers=[0.], filter_half_widths=[bldly], eigenval_cutoff=eigenval_cutoff)[0]
+        bl_dpss_vectors = dspec.dpss_operator(
+            x=uvdata.freq_array[0],
+            filter_centers=[0.0],
+            filter_half_widths=[bldly],
+            eigenval_cutoff=eigenval_cutoff,
+        )[0]
         # pad zeros representing data outside of the vectors particular baseline block.
-        bl_dpss_vectors = np.pad(bl_dpss_vectors, [(blinds[0] * uvdata.Nfreqs, (uvdata.Nblts - blinds[-1] - 1) * uvdata.Nfreqs), (0, 0)])
+        bl_dpss_vectors = np.pad(
+            bl_dpss_vectors,
+            [
+                (
+                    blinds[0] * uvdata.Nfreqs,
+                    (uvdata.Nblts - blinds[-1] - 1) * uvdata.Nfreqs,
+                ),
+                (0, 0),
+            ],
+        )
         dpss_vectors.append(bl_dpss_vectors)
     dpss_vectors = np.hstack(dpss_vectors)
     return dpss_vectors
 
 
-def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=False, eig_kwarg_dict=None, use_tensorflow=False,
-                         write_outputs=False, output_dir='./', **cov_mat_simple_kwargs):
+def cov_mat_simple_evecs(
+    uvdata=None,
+    eigenval_cutoff=1e-10,
+    use_sparseness=False,
+    eig_kwarg_dict=None,
+    use_tensorflow=False,
+    write_outputs=False,
+    output_dir="./",
+    **cov_mat_simple_kwargs,
+):
     """Generate eigenvectors of cov_mat_simple covariance to fit data.
 
     Parameters
@@ -400,10 +503,25 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
     if eig_kwarg_dict is None:
         eig_kwarg_dict = {}
     if uvdata is None:
-        cmat, uvdata = cov_mat_simple(return_uvdata=True, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_kwargs)
+        cmat, uvdata = cov_mat_simple(
+            return_uvdata=True,
+            return_bl_lens_freqs=False,
+            order_by_bl_length=False,
+            **cov_mat_simple_kwargs,
+        )
     else:
-        cmat = cov_mat_simple(uvd=uvdata, return_uvdata=False, return_bl_lens_freqs=False, order_by_bl_length=False, **cov_mat_simple_kwargs)
-    if use_sparseness and 'bl_cutoff_buffer' in cov_mat_simple_kwargs and np.isfinite(cov_mat_simple_kwargs['bl_cutoff_buffer']):
+        cmat = cov_mat_simple(
+            uvd=uvdata,
+            return_uvdata=False,
+            return_bl_lens_freqs=False,
+            order_by_bl_length=False,
+            **cov_mat_simple_kwargs,
+        )
+    if (
+        use_sparseness
+        and "bl_cutoff_buffer" in cov_mat_simple_kwargs
+        and np.isfinite(cov_mat_simple_kwargs["bl_cutoff_buffer"])
+    ):
         cmat = convert_to_sparse_bands(cmat)
         evals, evecs = sparse.linalg.eigsh(cmat, k=cmat.shape[0] // 2, **eig_kwarg_dict)
     elif use_tensorflow:
@@ -421,17 +539,28 @@ def cov_mat_simple_evecs(uvdata=None, eigenval_cutoff=1e-10, use_sparseness=Fals
     evals = evals[to_keep]
     # reshape evecs to uvdata data_array
     if write_outputs:
-        if 'bl_cutoff_buffer' in cov_mat_simple_kwargs:
-            blc =  cov_mat_simple_kwargs['bl_cutoff_buffer']
-            blc_str = f'{blc:.1f}'
+        if "bl_cutoff_buffer" in cov_mat_simple_kwargs:
+            blc = cov_mat_simple_kwargs["bl_cutoff_buffer"]
+            blc_str = f"{blc:.1f}"
         else:
-            blc_str = 'inf'
-        if 'antenna_chromaticity' in cov_mat_simple_kwargs:
-            ad = cov_mat_simple_kwargs['antenna_chromaticity'] * 3e8
+            blc_str = "inf"
+        if "antenna_chromaticity" in cov_mat_simple_kwargs:
+            ad = cov_mat_simple_kwargs["antenna_chromaticity"] * 3e8
         else:
             ad = defaults.antenna_diameter
-        basename = visibilities.get_basename(antenna_count=uvdata.Nants_telescope, nf=uvdata.Nfreqs, df=np.median(np.diff(uvdata.freq_array[0])), f0=uvdata.freq_array.min(),
-                                            fractional_spacing=np.min(np.linalg.norm(uvdata.uvw_array, axis=1)) / (ad))
-        np.savez(os.path.join(output_dir, basename + f'_blc_{blc_str}_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz'), evecs=evecs)
+        basename = visibilities.get_basename(
+            antenna_count=uvdata.Nants_telescope,
+            nf=uvdata.Nfreqs,
+            df=np.median(np.diff(uvdata.freq_array[0])),
+            f0=uvdata.freq_array.min(),
+            fractional_spacing=np.min(np.linalg.norm(uvdata.uvw_array, axis=1)) / (ad),
+        )
+        np.savez(
+            os.path.join(
+                output_dir,
+                basename + f"_blc_{blc_str}_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz",
+            ),
+            evecs=evecs,
+        )
 
     return evals, evecs

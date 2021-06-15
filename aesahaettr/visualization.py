@@ -3,7 +3,8 @@ import copy
 from uvtools import dspec
 from . import defaults
 
-def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window='bh', min_bl=0.1):
+
+def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window="bh", min_bl=0.1):
     """
     generate an (NF x NBL) array with baselines arranged in ascending length
 
@@ -41,5 +42,5 @@ def delay_transform_sort_by_baseline_length(uvd, tind=0, polind=0, window='bh', 
     bl_lens = bl_lens[bl_lens > min_bl]
     wf = dspec.gen_window(window, uvd.Nfreqs)
     delays = 1e9 * np.fft.fftshift(np.fft.fftfreq(uvd.Nfreqs, np.mean(np.diff(uvd.freq_array))))
-    fftd_data =  np.fft.fftshift(np.fft.fft(np.fft.fftshift(wf[None, :] * data, axes=1), axis=1), axes=1)
+    fftd_data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(wf[None, :] * data, axes=1), axis=1), axes=1)
     return bl_lens, delays, fftd_data
