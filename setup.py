@@ -56,10 +56,7 @@ setup(
                       'numba',
                       'numba-scipy',
                       'scipy',
-                      'pygdsm @ git+git://github.com/telegraphic/pygdsm',
                       'uvtools @ git+git://github.com/HERA-Team/uvtools',
-                      'pyuvsim @ git+git://github.com/RadioAstronomySoftwareGroup/pyuvsim',
-                      'hera_sim @ git+git://github.com/HERA-Team/hera_sim'
                       ],
     # hera_sim GPU seems to have dependency conflicts with tensorflow.
     #extras_require={
