@@ -1,13 +1,11 @@
 # tools for computing ivsibility covariances.
 
 import numpy as np
-from . import visibilities
 from . import defaults
 import tqdm
 import healpy as hp
 
 # import airy beam model.
-from hera_sim.visibilities import vis_cpu
 import numba
 import scipy.integrate as integrate
 import itertools
@@ -49,7 +47,7 @@ def convert_to_sparse_bands(cov_matrix):
 
 
 def cov_mat_simple(
-    uvd=None,
+    uvd,
     antenna_chromaticity=0.0,
     bl_cutoff_buffer=np.inf,
     order_by_bl_length=False,
@@ -64,9 +62,6 @@ def cov_mat_simple(
 
     Parameters
     ----------
-    uvd: UVData object
-        Input data to compute covariance matrix for.
-        Only supports 1d arrays.
     antenna_chromaticity: float, optional
         intrinsic chromaticity of each antenna and the sky (in seconds).
         Default is 0.0
@@ -81,10 +76,6 @@ def cov_mat_simple(
         if True, return vector of baseline lengths and frequencies.
     intra_baseline_only: bool, optional
         if True, only keep blocks corresponding to the same baseline.
-    array_config_kwargs: kwarg dict
-        kargs for visibilities.initialize_uvdata
-        see docstring.
-
 
     Returns
     -------
@@ -104,8 +95,6 @@ def cov_mat_simple(
             cut between the fabric of the foregrounds and cosmological signal.
         uvd: UVData object containing metadata information.
     """
-    if uvd is None:
-        uvd, _, _ = visibilities.initialize_uvdata(**array_config_kwargs)
     for i in range(1, 2):
         if np.any(~np.isclose(uvd.uvw_array[:, i], 0.0)):
             raise NotImplementedError("cov_mat_simple only currently supports 1d arrays oriented EW.")
@@ -225,8 +214,6 @@ def cov_matrix_airy(
     """
     if "antenna_diameter" not in array_config_kwargs:
         array_config_kwargs["antenna_diameter"] = defaults.antenna_diameter
-    if uvdata is None:
-        uvdata, _, _ = visibilities.initialize_uvdata(**array_config_kwargs)
 
     data_inds = np.where(uvdata.time_array == uvdata.time_array[0])[0]
     nblfrqs = uvdata.Nbls * uvdata.Nfreqs
@@ -308,107 +295,6 @@ def process_matrix_element(bl1, bl2, nu1, nu2, min_freq, max_freq, antenna_diame
         return 0.0
 
 
-def cov_mat_simulated(
-    ndraws=1000,
-    compress_by_redundancy=False,
-    output_dir="./",
-    mode="gsm",
-    nside_sky=defaults.nside_sky,
-    clobber=True,
-    order_by_bl_length=False,
-    return_uvdata=False,
-    **array_config_kwargs,
-):
-    """Estimate a bootstrapped gsm covariance matrix using random rotations of GlobalSkyModel.
-
-    Parameters
-    ----------
-    ndraws: int, optional
-        number of realizations of the sky to derive covariance from.
-        default is 1000
-    compress_by_redundancy: bool, optional
-        if True, only compute covariance for one baseline per redundant group.
-    output_dir: str, optional
-        where to write template container
-    mode: str, optional
-        'gsm' for gsm or 'eor' for random fluctuations.
-    nside_sky: int, optional
-        nsides of healpix sky to simulate.
-    clobber: bool, optional
-        if true, overwrite existing files. If not, dont.
-        only applies to templaet data.
-    return uvdata: bool, optional
-        if true, return uvdata object as well
-
-    Returns
-    -------
-    cov-mat: array-like
-        covariance matrix that is (Nfreqs * Nbls) x (Nfreqs * Nbls)
-        derived from randomly drawing a simulated sky.
-    if return_uvdata:
-        UVData object with all of the metadata / data shape.
-    """
-    uvdata, beams, beam_ids = visibilities.initialize_uvdata(
-        output_dir=output_dir, clobber=clobber, **array_config_kwargs
-    )
-    if mode == "gsm":
-        signalcube = visibilities.initialize_gsm(uvdata.freq_array[0], nside_sky=nside_sky)
-    if compress_by_redundancy:
-        uvdata_compressed = uvdata.compress_by_redundancy(tol=0.25 * 3e8 / uvdata.freq_array.max(), inplace=False)
-        nblfrqs = uvdata_compressed.Nbls * uvdata_compressed.Nfreqs
-        data_inds = np.where(uvdata_compressed.time_array == uvdata.time_array[0])[0]
-        if order_by_bl_length:
-            data_inds = data_inds[np.argsort(np.abs(uvdata_compressed.uvw_array[data_inds, 0]))]
-    else:
-        data_inds = np.where(uvdata.time_array == uvdata.time_array[0])[0]
-        nblfrqs = uvdata.Nbls * uvdata.Nfreqs
-        if order_by_bl_length:
-            data_inds = data_inds[np.argsort(np.abs(uvdata.uvw_array[data_inds, 0]))]
-
-    cov_mat = np.zeros((nblfrqs, nblfrqs), dtype=complex)
-    mean_mat = np.zeros(nblfrqs, dtype=complex)
-
-    for draw in tqdm.tqdm(range(ndraws)):
-        # generate random rotation
-        if mode == "gsm":
-            rot = hp.Rotator(
-                rot=(
-                    np.random.rand() * 360,
-                    (np.random.rand() * 180 - 90),
-                    np.random.rand() * 360,
-                )
-            )
-            signalcube = np.asarray(rot.rotate_map_pixel(signalcube))
-        else:
-            signalcube = visibilities.initialize_eor(uvdata.freq_array[0], nside_sky=nside_sky)
-        uvdata.data_array[:] = 0.0
-        simulator = vis_cpu.VisCPU(
-            uvdata=uvdata,
-            sky_freqs=uvdata.freq_array[0],
-            beams=beams,
-            beam_ids=beam_ids,
-            sky_intensity=signalcube,
-        )
-        simulator.simulate()
-        if compress_by_redundancy:
-            uvdata_compressed = simulator.uvdata.compress_by_redundancy(
-                tol=0.25 * 3e8 / uvdata.freq_array.max(), inplace=False
-            )
-            data_vec = uvdata_compressed.data_array[data_inds, 0, :, 0].flatten()
-        else:
-            data_vec = simulator.uvdata.data_array[data_inds, 0, :, 0].flatten()
-        mean_mat += data_vec
-        cov_mat += np.outer(data_vec, np.conj(data_vec))
-    mean_mat = mean_mat / ndraws
-    cov_mat = cov_mat / ndraws - np.outer(mean_mat, np.conj(mean_mat))
-    if return_uvdata:
-        if compress_by_redundancy:
-            return uvdata_compressed, cov_mat
-        else:
-            return cov_mat, uvdata
-    else:
-        return cov_mat
-
 
 def dpss_modeling_vectors(uvdata, eigenval_cutoff=None, antenna_diameter=defaults.antenna_diameter):
     """Generate per-baseline dpss eigenvectors for a uvdata object.
@@ -467,6 +353,7 @@ def cov_mat_simple_evecs(
     use_tensorflow=False,
     write_outputs=False,
     output_dir="./",
+    output_basename=None,
     **cov_mat_simple_kwargs,
 ):
     """Generate eigenvectors of cov_mat_simple covariance to fit data.
@@ -548,17 +435,10 @@ def cov_mat_simple_evecs(
             ad = cov_mat_simple_kwargs["antenna_chromaticity"] * 3e8
         else:
             ad = defaults.antenna_diameter
-        basename = visibilities.get_basename(
-            antenna_count=uvdata.Nants_telescope,
-            nf=uvdata.Nfreqs,
-            df=np.median(np.diff(uvdata.freq_array[0])),
-            f0=uvdata.freq_array.min(),
-            fractional_spacing=np.min(np.linalg.norm(uvdata.uvw_array, axis=1)) / (ad),
-        )
         np.savez(
             os.path.join(
                 output_dir,
-                basename + f"_blc_{blc_str}_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz",
+                oubput_basename + f"_blc_{blc_str}_simple_cov_evecs_evalcut_{10*np.log10(eigenval_cutoff):.1f}dB.npz",
             ),
             evecs=evecs,
         )
